@@ -1,90 +1,10 @@
-% !TeX root = ../main.tex
-% Add the above to each chapter to make compiling the PDF easier in some editors.
-
 \chapter{Introduction}\label{chapter:introduction}
-
-\section{Section}
-Citation test~\parencite{latex}.
-
-\subsection{Subsection}
-
-See~\autoref{tab:sample}, \autoref{fig:sample-drawing}, \autoref{fig:sample-plot}, \autoref{fig:sample-listing}.
-
-\begin{table}[htpb]
-  \caption[Example table]{An example for a simple table.}\label{tab:sample}
-  \centering
-  \begin{tabular}{l l l l}
-    \toprule
-      A & B & C & D \\
-    \midrule
-      1 & 2 & 1 & 2 \\
-      2 & 3 & 2 & 3 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\begin{figure}[htpb]
-  \centering
-  % This should probably go into a file in figures/
-  \begin{tikzpicture}[node distance=3cm]
-    \node (R0) {$R_1$};
-    \node (R1) [right of=R0] {$R_2$};
-    \node (R2) [below of=R1] {$R_4$};
-    \node (R3) [below of=R0] {$R_3$};
-    \node (R4) [right of=R1] {$R_5$};
-
-    \path[every node]
-      (R0) edge (R1)
-      (R0) edge (R3)
-      (R3) edge (R2)
-      (R2) edge (R1)
-      (R1) edge (R4);
-  \end{tikzpicture}
-  \caption[Example drawing]{An example for a simple drawing.}\label{fig:sample-drawing}
-\end{figure}
-
-\begin{figure}[htpb]
-  \centering
-
-  \pgfplotstableset{col sep=&, row sep=\\}
-  % This should probably go into a file in data/
-  \pgfplotstableread{
-    a & b    \\
-    1 & 1000 \\
-    2 & 1500 \\
-    3 & 1600 \\
-  }\exampleA
-  \pgfplotstableread{
-    a & b    \\
-    1 & 1200 \\
-    2 & 800 \\
-    3 & 1400 \\
-  }\exampleB
-  % This should probably go into a file in figures/
-  \begin{tikzpicture}
-    \begin{axis}[
-        ymin=0,
-        legend style={legend pos=south east},
-        grid,
-        thick,
-        ylabel=Y,
-        xlabel=X
-      ]
-      \addplot table[x=a, y=b]{\exampleA};
-      \addlegendentry{Example A};
-      \addplot table[x=a, y=b]{\exampleB};
-      \addlegendentry{Example B};
-    \end{axis}
-  \end{tikzpicture}
-  \caption[Example plot]{An example for a simple plot.}\label{fig:sample-plot}
-\end{figure}
-
-\begin{figure}[htpb]
-  \centering
-  \begin{tabular}{c}
-  \begin{lstlisting}[language=SQL]
-    SELECT * FROM tbl WHERE tbl.str = "str"
-  \end{lstlisting}
-  \end{tabular}
-  \caption[Example listing]{An example for a source code listing.}\label{fig:sample-listing}
-\end{figure}
+The animation of fluids has become a key element of visual effects in the past years increasing the immersion of movies and computer games. Two main approaches have arisen to achieve realistic results: The Lagrangian method, which computes the dynamics of individual particles in respect to each other and the Eulerian method, that uses a fixed grid and computes how mass is moved within the grid. Existing solutions are often highly computational intense leading to trade-offs between realtime-capable simulations and accuracy, density or size and thus believability of the simulation. Newer approaches tackling this issue by leveraging the power of Deep Neural Networks and transforming it into a data-driven unsupervised learning problem. Until recently only Eulerian methods were fully differentiable making them suitable for deep-learning. However recent work by Schenk and Fox [SPnet] has shown a fully differentiable particle-based approach. Using simulation data of each timestep, Deep Neural Networks can be trained to mimic the concepts of the Navier-Stokes equation for fluid dynamics [Paper of Jonathan Tompson, Ken Perlin]. For larger simulations, the amount of physical memory needed to store the training data gets huge quickly. To avoid this, training data generation and the training process itself can be run in parallel: After every timestep is calculated the network's weights can be adjusted.
+\section{Phiflow}
+PhiFlow is a toolkit written entirely in Python and currently under development by Philipp Holl at the TUM Chair of Computer Graphics and Visualization for solving and visualizing n-dimensional fluid simulations. It focuses to keep every simulation step differentiable which makes it suitable for backpropagation which is required to calculate the gradient of the loss function of Neural Networks to adjust the weight of its neurons. Being developed on top of NumPy/SciPy and TensorFlow it is not only capable to run on CPU, but also completely on GPU. TensorFlow simplifies the implementation of Machine Learning algorithms including the use of Neural Networks for predictions and classification. This makes PhiFlow a powerful tool to train Neural Networks on fluid simulations and also visualize it by its interactive GUI running in the browser. 
+\section{Problem}
+This work proposes an implementation to solve the pressure equation - the most computational intense part of Eulerian fluid simulations. Being as efficient as possible is crucial for fast simulations. PhiFlow already comes with its own pressure solver running directly in TensorFlow. However, it is not clear/easy to understand how TensorFlow builds the dataflow graph exactly which may bring overhead to the computation. TensorFlow offers the possibility to write custom operations ("Custom ops") in C++ to tackle exactly this issue: Writing efficient code to solve a specific problem within the dataflow graph. Furthermore, the CUDA API by Nvidia makes it possible to write low-level C++ code that runs natively on GPUs. Combining Custom Ops and CUDA kernels lead to a solution that is both efficient and transparent and also compliant to TensorFlow's Tensors which is required to be used within PhiFlow. It can then be compared to the solution that comes with PhiFlow.
+\section{Pressure Solve and Conjugate Gradient}
+The Pressure Solve Problem is basically a system of linear equations whose solution is the exact pressure value of each cell in order to be compliant with the incompressibility constraint of fluids. Luckily the matrix of the linear system is symmetric and positive-definite which makes it suitable to be solved by the Conjugate Gradient method. Consisting of only some vector operations and Matrix-Vector multiplications, the cg-method is perfect to be solved in parallel on a GPU. Being a sparse matrix gives additional room for improvement, by not only keeping the required memory low but also decreasing the amount of data, that needs to be sent between the GPU's global memory to the on-chip local memory and vice versa. Also, no changes to the boundary conditions of the simulation mean no changes to the matrix itself, so it can be kept on GPU memory and don't have to be transferred between CPU and GPU, which is also pretty costly. 
+\section{Challenges (Part of introduction or leave it out?)}
+The fact that the whole documentation for Custom TensorFlow operations consists of one inchoate single page made it hard to build the first working skeleton. Besides having a lot of code examples available, finding the one specific example to extract the information needed was hard, which led to lots of trial and error. [Also debugging on GPU...]
