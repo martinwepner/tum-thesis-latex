@@ -1,9 +1,9 @@
 [0] Config.pm:302> INFO - This is Biber 2.11
-[1] Config.pm:305> INFO - Logfile is '/Users/martinwepner/git/thesis/tum-thesis-latex/.texpadtmp/main.blg'
-[31] biber-darwin:313> INFO - === Sun Feb 10, 2019, 20:38:09
-[47] Biber.pm:371> INFO - Reading '/Users/martinwepner/git/thesis/tum-thesis-latex/.texpadtmp/main.bcf'
-[115] Biber.pm:857> INFO - Found 0 citekeys in bib section 0
-[120] Utils.pm:193> WARN - The file '/Users/martinwepner/git/thesis/tum-thesis-latex/.texpadtmp/main.bcf' does not contain any citations!
-[125] bbl.pm:617> INFO - Writing '/Users/martinwepner/git/thesis/tum-thesis-latex/.texpadtmp/main.bbl' with encoding 'UTF-8'
-[125] bbl.pm:720> INFO - Output to /Users/martinwepner/git/thesis/tum-thesis-latex/.texpadtmp/main.bbl
-[126] Biber.pm:110> INFO - WARNINGS: 1
+[0] Config.pm:305> INFO - Logfile is '/Users/martinwepner/git/thesis/tum-thesis-latex/.texpadtmp/main.blg'
+[28] biber-darwin:313> INFO - === Sun Feb 10, 2019, 23:19:17
+[45] Biber.pm:371> INFO - Reading '/Users/martinwepner/git/thesis/tum-thesis-latex/.texpadtmp/main.bcf'
+[112] Biber.pm:857> INFO - Found 0 citekeys in bib section 0
+[117] Utils.pm:193> WARN - The file '/Users/martinwepner/git/thesis/tum-thesis-latex/.texpadtmp/main.bcf' does not contain any citations!
+[123] bbl.pm:617> INFO - Writing '/Users/martinwepner/git/thesis/tum-thesis-latex/.texpadtmp/main.bbl' with encoding 'UTF-8'
+[123] bbl.pm:720> INFO - Output to /Users/martinwepner/git/thesis/tum-thesis-latex/.texpadtmp/main.bbl
+[123] Biber.pm:110> INFO - WARNINGS: 1

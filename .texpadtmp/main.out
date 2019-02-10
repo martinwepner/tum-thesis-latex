@@ -2,12 +2,12 @@
 \BOOKMARK [0][-]{chapter*.1}{Abstract}{}% 2
 \BOOKMARK [0][-]{toc.0}{Contents}{}% 3
 \BOOKMARK [0][-]{chapter.1}{Introduction}{}% 4
-\BOOKMARK [1][-]{section.1.1}{Phiflow}{chapter.1}% 5
+\BOOKMARK [1][-]{section.1.1}{PhiFlow}{chapter.1}% 5
 \BOOKMARK [1][-]{section.1.2}{Problem}{chapter.1}% 6
 \BOOKMARK [1][-]{section.1.3}{Pressure Solve and Conjugate Gradient}{chapter.1}% 7
 \BOOKMARK [1][-]{section.1.4}{Challenges \(Part of introduction or leave it out?\)}{chapter.1}% 8
 \BOOKMARK [0][-]{chapter.2}{Related Work}{}% 9
-\BOOKMARK [0][-]{chapter.3}{Results}{}% 10
-\BOOKMARK [0][-]{chapter.4}{Cuda Pressure Solver}{}% 11
+\BOOKMARK [0][-]{chapter.3}{Cuda Pressure Solver}{}% 10
+\BOOKMARK [0][-]{chapter.4}{Results}{}% 11
 \BOOKMARK [0][-]{chapter*.3}{List of Figures}{}% 12
 \BOOKMARK [0][-]{chapter*.4}{List of Tables}{}% 13
