@@ -10,7 +10,7 @@ The fundamentals of any fluid simulation lay in the Navier Stokes equations[TODO
 The letter $\vec{u}$ is the velocity vector of the fluid.\\
 The Greek letter Rho $\rho$ stands for the density of the fluid. Water for example has a density of 1000 $kg/m^3$. \\
 $p$ on the other hand holds the pressure, which is the force per unit the fluid exerts on its surroundings.\\
-External forces like gravity are collected in the letter $\vec{F}$.\\
+External forces like gravity and buoyancy are collected in the letter $\vec{F}$.\\
 The Greek letter Nu $\nu$ is called kinematic viscosity. The higher the viscosity of a fluid is the higher its inner inertia. For example honey has a higher viscosity than water.\\\\
 The first of those equations - the "momentum equation" - very briefly describes how the fluid accelerates due to the forces acting on it. The second is called "incompressibility condition" and means that the volume of the fluid doesn't change.
 \par However, real fluids are compressible, so why do we assume them to be incompressible? Liquid fluids are in theory compressible, but it requires a lot of force to do so and it is also only possible until a tiny degree of compression. Gases like air are easier to compress, but only with the help of pumps or extreme situations like blast waves caused by explosions. Those kind of scenarios are called "compressible flow" and are expensive to simulate. Additionally they are only visible on macroscopic level and hence irrelevant for the animation of fluids.
