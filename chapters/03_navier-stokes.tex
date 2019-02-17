@@ -1,0 +1,60 @@
+\chapter{Navier Stokes Equations [TODO title]}\label{chapter:cudapressuresolver}
+
+The fundamentals of any fluid simulation lay in the Navier Stokes equations[TODO]:\\
+\begin{equation} \label{navier-stokes1}
+\frac{\partial \vec{u}}{\partial t} + \vec{u} \cdot \nabla \vec{u} + \frac{1}{\rho}  \nabla p = \vec{F} + \nu \nabla \cdot \nabla \vec{u}
+\end{equation}
+\begin{equation} \label{navier-stokes2}
+\nabla \cdot u = 0
+\end{equation}
+The letter $\vec{u}$ is the velocity vector of the fluid.\\
+The Greek letter Rho $\rho$ stands for the density of the fluid. Water for example has a density of 1000 $kg/m^3$. \\
+$p$ on the other hand holds the pressure, which is the force per unit the fluid exerts on its surroundings.\\
+External forces like gravity are collected in the letter $\vec{F}$.\\
+The Greek letter Nu $\nu$ is called kinematic viscosity. The higher the viscosity of a fluid is the higher its inner inertia. For example honey has a higher viscosity than water.\\\\
+The first of those equations - the "momentum equation" - very briefly describes how the fluid accelerates due to the forces acting on it. The second is called "incompressibility condition" and means that the volume of the fluid doesn't change.
+\par However, real fluids are compressible, so why do we assume them to be incompressible? Liquid fluids are in theory compressible, but it requires a lot of force to do so and it is also only possible until a tiny degree of compression. Gases like air are easier to compress, but only with the help of pumps or extreme situations like blast waves caused by explosions. Those kind of scenarios are called "compressible flow" and are expensive to simulate. Additionally they are only visible on macroscopic level and hence irrelevant for the animation of fluids.
+\par Only in those cases where animating viscous fluids like honey is desired, viscosity needs to be considered. For most cases however, it plays a minor role and can be dropped. Those ideal fluids without viscosity are called "inviscid". The Navier Stokes equations can then be simplified to the following, the so called "Euler Equations":
+\begin{equation} \label{navier-stokes12}
+\frac{\partial \vec{u}}{\partial t} + \frac{1}{\rho}  \nabla p = \vec{F}
+\end{equation}
+\begin{equation} \label{navier-stokes22}
+\nabla \cdot u = 0
+\end{equation}
+
+\section{The role of the pressure solve in incompressible Navier Stokes equations}
+The pressure solve is part of the Navier Stokes equations:
+\begin{equation} \label{navier-stokes-pressure}
+\frac{\partial \vec{u}}{\partial t} + \frac{1}{\rho}  \nabla p = 0 \quad s.t. \quad \nabla \cdot \vec{u} = 0
+\end{equation}
+This means, that the pressure always needs to be so, that it advects the velocity field $\vec{u}$ divergence-free and thus makes the fluid incompressible.  [TODO: Maybe write \textit{what exactly} the pressure is and what it means for the simulation]
+
+\subsection{Boundary Conditions}
+If a inviscid fluid is in contact with a wall respective solid, it should move in the tangential direction of the solids normal. To achieve this the velocity components of the solid normal needs to be zero. [TODO: rewrite this]
+\begin{equation} \label{navier-stokes12}
+\vec{u} \cdot \hat{n} = 0
+\end{equation}
+And for moving boundaries the tangential normal component of the velocity matches the normal velocity of the solid:
+\begin{equation} \label{navier-stokes12}
+\vec{u} \cdot \hat{n} = \vec{u} \textsubscript{solid} \cdot \hat{n}
+\end{equation}
+Compared to water, air is 700 times lighter. For simplicity the pressure $p$ of air regions may be set to zero since it has only very little impact and therefore no significant visual effect.
+
+\subsection{TODO: Something about MAC Grid?}
+
+\subsection{Discretization and derivation of the pressure equation}
+Discretizing (3.5) and (3.7) results in the following:
+
+\begin{equation} \label{navier-stokes12}
+\vec{u} \textsuperscript{n+1} = \vec{u} \textsuperscript{n} - \Delta t \frac{1}{\rho} \nabla p \quad s.t. \quad \nabla \cdot \vec{u} \textsuperscript{n+1} = 0
+\end{equation}
+\begin{equation} \label{navier-stokes12}
+\vec{u} \textsuperscript{n+1} \cdot \hat{n} = \vec{u} \textsubscript{solid} \cdot \hat{n}
+\end{equation}
+
+
+=> Ziel am Ende Herleitung von A * p = y
+
+
+
+
