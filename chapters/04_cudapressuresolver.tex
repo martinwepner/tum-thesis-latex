@@ -1,27 +1,2 @@
 \chapter{CUDA Pressure Solver}\label{chapter:cudapressuresolver}
-In this chapter we will find an efficient numerical approach to solve the system of linear equations $\mathbf{A}p = -\frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n$. $\mathbf{A}$ to find $p$ using TensorFlows Custom Kernels and Nvidia CUDA. First we discuss how $\mathbf{A}$ is built and stored in memory and then how the Conjugate Gradient method can be used to solve it. 
-\section{ The Laplace Matrix }
-Taking a closer look and some rearrangements on equation \ref{pressure-equation} shows that it is an approximation of the Poisson problem $-\Delta t / \rho \nabla \cdot \nabla p = - \nabla \cdot \vec{u}$. Because of that I call $\mathbf{A}$ \textit{Laplace Matrix} in the following. 
-\par To implement a method that extracts the Laplace Matrix, we need to take a look on the boundary conditions first. Assume a grid cell $(i,j)$ of which one neighbor $(i-1,j)$ is an air cell ($p_{i-1,j}=0$) and another $(i+1, j)$ is a solid cell ($p_{i+1,j}= p_{i,j} + \frac{\rho \Delta x}{\Delta t} (u_{i+1/2,j} - u_{solid})$). The remaining neighbors are fluid cells. Knowing that, we can rearrange \ref{pressure-equation} to the following:
-\begin{equation} \label{pressure-equation-with-boundaries}
-	\begin{aligned}
-		& -4p_{i,j} + \left[p_{i,j} + \frac{\rho \Delta x}{\Delta t} (u_{i+1/2,j} - u_{solid}) \right] + p_{i,j+1} + 0 + p_{i,j-1} \\
-		& = \frac{\rho \Delta x^2}{\Delta t} \left( \frac{u_{i+1/2,j}^{n} - u_{i-1/2,j}^{n}}{\Delta x} + \frac{v_{i,j+1/2}^{n} - v_{i,j-1/2}^{n}}{\Delta x} \right)
-	\end{aligned}
-\end{equation}
-which results in
-\begin{equation} \label{pressure-equation-with-boundaries-resolved}
-	\begin{aligned}
-		& - 3p_{i,j} + p_{i,j+1} + p_{i,j-1} = \frac{\rho \Delta x^2}{\Delta t} \left( \frac{u_{solid}^{n} - u_{i-1/2,j}^{n}}{\Delta x} + \frac{v_{i,j+1/2}^{n} - v_{i,j-1/2}^{n}}{\Delta x} \right)
-	\end{aligned}
-\end{equation}
-\par We can make some very important observations from \ref{pressure-equation}, \ref{pressure-equation-with-boundaries} and \ref{pressure-equation-with-boundaries-resolved} for building the Laplace Matrix in code:
-\begin{itemize}
-	  \item $\mathbf{A}$ is similar to an adjacency matrix. Every row represents one cell $(i,j)$ and every column all cells on the MAC grid.
-      \item Note that the coefficient of $p_{i,j}$ in \ref{pressure-equation} matches the negative number of neighbors of a cell $(i,j)$. Let's call this coefficient $k_{diagonal} = -dim(grid) * 2$, since it is always on the diagonal of $\mathbf{A}$'s entries.
-      \item Every neighbor of row $(i,j)$ is 1 in $\mathbf{A}$.
-      \item Every other cell which is no neighbor of row $(i,j)$ is zero
-      \item For every neighbor of row $(i,j)$ that is a solid cell decrement $k_{diagonal}$ and set the corresponding column to zero.
-      \item For every neighbor of row $(i,j)$ that is an air cell set the corresponding column to zero.
-\end{itemize}
-\par With that in mind we can derive an algorithm which builds $\mathbf{A}$. Note that most of $\mathbf{A}$ is zero so it is a sparse matrix. Also, because of the symmetry of neighboring cells, $\mathbf{A}$ is symmetric.
+In this chapter we find an efficient numerical approach to solve the system of linear equations $\mathbf{A}p = -\frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n$ using TensorFlows Custom Kernels and Nvidia CUDA. First, we discuss how $\mathbf{A}$ is built and stored in memory and then how the Conjugate Gradient method can be used to solve it. 
