@@ -1,2 +1,69 @@
 \chapter{CUDA Pressure Solver}\label{chapter:cudapressuresolver}
-In this chapter we find an efficient numerical approach to solve the system of linear equations $\mathbf{A}p = -\frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n$ using TensorFlows Custom Kernels and Nvidia CUDA. First, we discuss how $\mathbf{A}$ is built and stored in memory and then how the Conjugate Gradient method can be used to solve it. 
+In this chapter we find an efficient numerical approach to solve the system of linear equations $\mathbf{A}p = -\frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n$ using TensorFlows Custom Kernels and Nvidia CUDA. First, we discuss how \textbf{A} is built and stored in memory and then how the Conjugate Gradient method can be used to solve it. 
+\par We will use some recurring variables which I clarify here:\\
+\textit{dimensions} is an array which holds the size of each dimension of the grid.\\
+\textit{dimSize} holds the number of dimensions.\\
+\textit{dimProduct} is the product $\prod_{i=0}^{dimSize} \textit{dimensions}[i]$ of all dimensions. \\
+\textit{mask} holds the information of fluid, air and solid cells.\\
+\textit{maskDimensions} is an array that holds the  extended dimensions of the grid.\\
+
+\section{Laplace Matrix generation}
+The goal of this section is to find a parallelizable algorithm that creates the Laplace Matrix \textbf{A}. We want the GPU to compute exactly one cell $(i,j)$ or one row in \textbf{A} per thread. Since \textbf{A} is sparse we can store it in the well-known \textit{compressed sparse row} (CSR) [TODO: No paper found] format. The CSR format stores a sparse matrix in three arrays:\\\\
+\begin{tabular}{ll}
+	\textit{data}: & stores all non-zero entries in row-major order.\\
+	\textit{columptr}: & stores for all non-zero entries their column index in row-major order.\\
+	\textit{rowcnt todo}: & stores for every row in \textbf{A} a pointer to the first entry in the \textit{data} array\\
+\end{tabular}
+\begin{figure*}
+	\centering
+	\begin{tabular}{lll}
+	\multirow{3}{*}{$\left[ {\begin{array}{cccc}
+   4 & 0 & 0 & 0  \\
+   1 & 4 & 2 & 0  \\
+   0 & 0 & 4 & 0  \\
+   3 & 0 & 0 & 4  \\
+  \end{array} } \right]$}
+	& \textit{data} & $=[4,1,4,2,4,3,4]$  \\
+	& \textit{columptr} & $=[0,0,1,2,2,0,3]$ \\
+	& \textit{rowcnt} & $=[0,1,4,5,7]$ \\
+	& & 
+	\end{tabular}
+\caption{Example Matrix in CSR format}\label{fig:csr-matrix}
+\end{figure*}
+\newpage
+\par However, the CSR format would save us a lot of memory but on the other hand will require three costly memory accesses to get all the data of one entry which is also not optimal. \\
+
+
+\newpage
+\begin{algorithm}
+\caption{My algorithm}\label{euclid}
+\begin{algorithmic}[1]
+\Procedure{MyProcedure}{1,2,3}
+\State $\textit{stringlen} \gets \text{length of }\textit{string}$
+\State $i \gets \textit{patlen}$
+\BState \emph{top}:
+\If {$i > \textit{stringlen}$} \Return false
+\EndIf
+\State $j \gets \textit{patlen}$
+\BState \emph{loop}:
+\If {$\textit{string}(i) = \textit{path}(j)$}
+\State $j \gets j-1$.
+\State $i \gets i-1$.
+\State \textbf{goto} \emph{loop}.
+\State \textbf{close};
+\EndIf
+\State $i \gets i+\max(\textit{delta}_1(\textit{string}(i)),\textit{delta}_2(j))$.
+\State \textbf{goto} \emph{top}.
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithmic}
+\If {$i\geq maxval$}
+    \State $i\gets 0$
+\Else
+    \If {$i+k\leq maxval$}
+        \State $i\gets i+k$
+    \EndIf
+\EndIf
+\end{algorithmic}

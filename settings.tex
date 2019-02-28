@@ -26,6 +26,16 @@
 \usepackage{caption}
 \usepackage[hidelinks]{hyperref} % hidelinks removes colored boxes around references and links
 \usepackage{amsmath}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{multirow}
+\usepackage{tikz}
+\usetikzlibrary{matrix}
+\usepackage[table]{xcolor}
+\usepackage{hhline}
+\usepackage[thinlines]{easytable}
+\usepackage{subcaption}
+\usepackage{blkarray}
 
 \bibliography{bibliography}
 
@@ -66,3 +76,16 @@
   keywordstyle=\bfseries\color{TUMBlue},
   stringstyle=\color{TUMAccentGreen}
 }
+
+
+\newcommand*{\ColorCells}[1]{
+  \foreach \x/\y/\color/\chara in {#1} {
+    \node [fill=\color, draw=none, thick, minimum size=1cm] 
+      at (\x-.5,\GridSize+0.5-\y) {\chara};
+    }
+}
+
+
+\makeatletter
+\def\BState{\State\hskip-\ALG@thistlm}
+\makeatother
