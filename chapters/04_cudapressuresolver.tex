@@ -1,37 +1,59 @@
 \chapter{CUDA Pressure Solver}\label{chapter:cudapressuresolver}
-In this chapter we find an efficient numerical approach to solve the system of linear equations $\mathbf{A}p = -\frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n$ using TensorFlows Custom Kernels and Nvidia CUDA. First, we discuss how \textbf{A} is built and stored in memory and then how the Conjugate Gradient method can be used to solve it. 
+In this chapter, we find an efficient numerical approach to solve the system of linear equations $\mathbf{A}p = -\frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n$ using TensorFlows Custom Ops and Nvidia CUDA Kernels. First, we discuss how \textbf{A} is built and stored in memory and then how the Conjugate Gradient method can be used to solve it. 
 \par We will use some recurring variables which I clarify here:\\
 \textit{dimensions} is an array which holds the size of each dimension of the grid.\\
 \textit{dimSize} holds the number of dimensions.\\
 \textit{dimProduct} is the product $\prod_{i=0}^{dimSize} \textit{dimensions}[i]$ of all dimensions. \\
-\textit{mask} holds the information of fluid, air and solid cells.\\
-\textit{maskDimensions} is an array that holds the  extended dimensions of the grid.\\
+\textit{mask} holds the information of fluid, air and solid cells including the boundary cells.\\
+\textit{maskDimensions} is an array that holds the dimensions of the mask.\\
 
 \section{Laplace Matrix generation}
-The goal of this section is to find a parallelizable algorithm that creates the Laplace Matrix \textbf{A}, so that a GPU can compute exactly one cell $(i,j)$ or one row in \textbf{A} per thread. Since \textbf{A} is sparse we can store it in the well-known \textit{compressed sparse row} (CSR) [TODO: No paper found] format. The CSR format stores a sparse matrix in three arrays:\\\\
+The goal of this section is to find a parallelizable algorithm that creates the Laplace Matrix A, so that a GPU can compute exactly one cell $(i,j)$ or one row in \textbf{A} per thread.
+\par GPU memory is very limited. For a simulation of the size $64 \text{ x } 64 \text{ x } 64$ the dimension of the Laplace Matrix is $262.144 \text{ x } 262.144$. This would require 256 Gigabyte of GPU-memory if we tried to cache the matrix naively, which is not possible without further ado at the time of this writing. 
+\par Take a look back on the example Laplace Matrix in Fig. \ref{fig:laplace-matrix}. Notice, that most of it is zero. In fact, there are only at most as many non-zero entries as the number of neighbors of a cell plus one for the cell itself. For 2D this means at most five and for 3D at most seven entries per row. Or in general $maxNonZerosPerRow = dimSize * 2 + 1$.
+\par The \textit{compressed sparse row} (CSR) [TODO: No paper found] format tackles this problem by only storing information of non-zero entries of a sparse Matrix. It consists of three arrays:\\\\
 \begin{tabular}{ll}
-	\textit{data}: & stores all non-zero entries in row-major order.\\
-	\textit{columptr}: & stores for all non-zero entries their column index in row-major order.\\
-	\textit{rowcnt todo}: & stores for every row in \textbf{A} a pointer to the first entry in the \textit{data} array\\
+	\textit{data\label{csr-data}}: & stores all non-zero entries in row-major order.\\
+	\textit{columnptr\label{csr-columnptr}}: & stores for all non-zero entries their column index in row-major order.\\
+	\textit{rowcnt\label{csr-rowcnt}}: & stores ranges of \hyperref[csr-data]{\textit{data}} entries for indexing the corresponding row.\\
 \end{tabular}
 \begin{figure*}
 	\centering
 	\begin{tabular}{lll}
-	\multirow{3}{*}{$\left[ {\begin{array}{cccc}
-   4 & 0 & 0 & 0  \\
-   1 & 4 & 2 & 0  \\
-   0 & 0 & 4 & 0  \\
-   3 & 0 & 0 & 4  \\
-  \end{array} } \right]$}
-	& \textit{data} & $=[4,1,4,2,4,3,4]$  \\
-	& \textit{columptr} & $=[0,0,1,2,2,0,3]$ \\
-	& \textit{rowcnt} & $=[0,1,4,5,7]$ \\
+	\multirow{3}{*}{$\left( {\begin{array}{cccccc}
+   4 & 0 & 0 & 0 & 0 & 0  \\
+   1 & 4 & 0 & 0 & 0 & 0  \\
+   0 & 0 & 4 & 0 & 0 & 0  \\
+   3 & 0 & 0 & 4 & 0 & 0  \\
+  \end{array} } \right)$}
+	& \hyperref[csr-data]{\textit{data}} & $=[4,1,4,4,3,4]$  \\
+	& \hyperref[csr-columnptr]{\textit{columnptr}} & $=[0,0,1,2,0,3]$ \\
+	& \hyperref[csr-rowcnt]{\textit{rowcnt}} & $=[0,1,3,4,6]$ \\
 	& & 
 	\end{tabular}
 \caption{Example Matrix in CSR format}\label{fig:csr-matrix}
 \end{figure*}
 \newpage
-\par The CSR format saves us a lot of memory, however, it will require three memory accesses to get all the data of one entry. Compared to pure computation, memory accesses are very costly on GPUs and should be kept low as possible. Take a look back on Fig. \ref{fig:laplace-matrix} and you probably see some kind of regularity. 
+\par Because \textbf{A} is sparse to a vast extent, the CSR format reduces memory consumption dramatically. However, it requires three memory accesses to get all data of one entry. Compared to pure computation, memory accesses are very costly on GPUs and should be kept as low as possible \parencite{fang2018benchmarking}\parencite{fujii2013data}. As we will later see, when we use the Laplace Matrix for solving the equation system, it is crucial to reduce those accesses to improve speed.
+
+[TODO: Insert naive algorithm here]
+
+
+\subsection{Optimization 1: Abandonment of CSR \hyperref[csr-rowcnt]{\textit{rowcnt}} array}
+The $i$th element of the \hyperref[csr-rowcnt]{\textit{rowcnt}} array points to the index in \hyperref[csr-data]{\textit{data}} of the first non-zero entry of the $i$th row. So for every row $i$ we know that all non-zero entries of this row lay in the range $\big[\text{\hyperref[csr-rowcnt]{\textit{rowcnt}}[i] ; \hyperref[csr-rowcnt]{\textit{rowcnt}}[i+1]}\big[$ in the \hyperref[csr-data]{\textit{data}} array. 
+\par The maximum number of non-zero entries per row in the Laplace Matrix is $maxNonZerosPerRow$ as defined above. It is only the maximum possible number of non-zeros because neighbor cells of $(i,j)$ might be air or solid cells, thus zero in the $(i,j)$th row of the Laplace Matrix. For cells at the edge of the grid, we set the corresponding value for neighbor cells that lay outside the grid to zero in the \hyperref[csr-data]{\textit{data}} array as well. The CSR format will remove those zero entries but if we keep them, we have a regular arrangement of \hyperref[csr-data]{\textit{data}} entries per row. As a trade-of this will require slightly more memory. However now we are able calculate the index of the row $i_{row}$ of any \hyperref[csr-data]{\textit{data}} entry by its index $i_{data}$:
+\begin{equation} \label{row-index-by-data-index}
+	i_{row} = \floor*{\frac{i_{data}}{maxNonZerosPerRow}}
+\end{equation}
+[\dots]
+\newpage
+
+\subsection{Optimization 2: Merge CSR \hyperref[csr-data]{\textit{data}} and \hyperref[csr-columnptr]{\textit{columnptr}} arrays}
+Another observation we can make from equation \ref{pressure-equation} and Fig. \ref{fig:laplace-matrix} is that the values of \hyperref[csr-data]{\textit{data}} in the range [$-2 \cdot dimSize$ ; 1]. Using an $INT32$ with 32 bits is a waste of memory. Instead a $INT8$ is more than enough (except in the unlikely event that you want to simulate more than 127 dimensions).  
+
+\[
+  INT32: \underbrace{\;0\,0\,0\,0\:\:1\,1\,1\,1\;\;0\,0\,0\,0\:\:1\,1\,1\,1\;\;0\,0\,0\,0\:\:1\,1\,1\,1\;}_\text{columnidx}\;\;\underbrace{\;0\,0\,0\,0\:\:1\,1\,1\,1\;}_\text{data} 
+\]
 
 
 \newpage
