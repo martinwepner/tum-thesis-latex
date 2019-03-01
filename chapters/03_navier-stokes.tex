@@ -89,17 +89,17 @@ As we figured in \ref{pressure-equation} for one pressure update of one cell we 
 
 \section{ The Laplace Matrix }
 Taking a closer look and with some rearrangements on equation \ref{pressure-equation} shows that it is an approximation of the Poisson problem $-\Delta t / \rho \nabla \cdot \nabla p = - \nabla \cdot \vec{u}$. Because of that I call $\mathbf{A}$ \textit{Laplace Matrix} in the following. 
-\par To implement a method that extracts the Laplace Matrix, we need to take a look on the boundary conditions first. Assume a grid cell $(i,j)$ of which one neighbor $(i-1,j)$ is an air cell ($p_{i-1,j}=0$) and another $(i+1, j)$ is a solid cell ($p_{i+1,j}= p_{i,j} + \frac{\rho \Delta x}{\Delta t} (u_{i+1/2,j} - u_{solid})$). The remaining neighbors are fluid cells. Knowing that, we can rearrange \ref{pressure-equation} to the following:
+\par To implement a method that extracts the Laplace Matrix, we need to take a look on the boundary conditions first. Assume a grid cell $(i,j)$ of which one neighbor $(i-1,j)$ is an air cell (\textcolor{blue}{$p_{i-1,j}=0$}) and another $(i+1, j)$ is a solid cell (\textcolor{brown}{$p_{i+1,j}= p_{i,j} + \frac{\rho \Delta x}{\Delta t} (u_{i+1/2,j} - u_{solid})$}). The remaining neighbors are fluid cells. Knowing that, we can rearrange \ref{pressure-equation} to the following:
 \begin{equation} \label{pressure-equation-with-boundaries}
     \begin{aligned}
-        & -4p_{i,j} + \left[p_{i,j} + \frac{\rho \Delta x}{\Delta t} (u_{i+1/2,j} - u_{solid}) \right] + p_{i,j+1} + 0 + p_{i,j-1} \\
+        & -4p_{i,j} + \textcolor{brown}{\left[p_{i,j} + \frac{\rho \Delta x}{\Delta t} (u_{i+1/2,j} - u_{solid}) \right]} + p_{i,j+1} + \textcolor{blue}{0} + p_{i,j-1} \\
         & = \frac{\rho \Delta x^2}{\Delta t} \left( \frac{u_{i+1/2,j}^{n} - u_{i-1/2,j}^{n}}{\Delta x} + \frac{v_{i,j+1/2}^{n} - v_{i,j-1/2}^{n}}{\Delta x} \right)
     \end{aligned}
 \end{equation}
 which results in
 \begin{equation} \label{pressure-equation-with-boundaries-resolved}
     \begin{aligned}
-        & - 3p_{i,j} + p_{i,j+1} + p_{i,j-1} = \frac{\rho \Delta x^2}{\Delta t} \left( \frac{u_{solid}^{n} - u_{i-1/2,j}^{n}}{\Delta x} + \frac{v_{i,j+1/2}^{n} - v_{i,j-1/2}^{n}}{\Delta x} \right)
+        & - \textcolor{brown}{3}p_{i,j} + p_{i,j+1} + p_{i,j-1} = \frac{\rho \Delta x^2}{\Delta t} \left( \frac{\textcolor{brown}{u_{solid}^{n}} - u_{i-1/2,j}^{n}}{\Delta x} + \frac{v_{i,j+1/2}^{n} - v_{i,j-1/2}^{n}}{\Delta x} \right)
     \end{aligned}
 \end{equation}
 \par We can make some very important observations from \ref{pressure-equation}, \ref{pressure-equation-with-boundaries} and \ref{pressure-equation-with-boundaries-resolved} for building the Laplace Matrix in code:
@@ -138,20 +138,20 @@ and a closed boundary.}\label{fig:grid-example}
 	& 00 & 01 & 02 & 03 & 10 & 11 & 12 & 13 & 20 & 21 & 22 & 23 & 30 & 31 & 32 & 33\\
 	\begin{block}{c(cccccccccccccccc)}
 		00 & \textcolor{red}{\text{-}2} & \textcolor{blue}{1} & & & \textcolor{blue}{1} & & & & & & & & & & &  \\
-  		01 & \textcolor{blue}{0} & \textcolor{red}{\text{-}2} & \textcolor{blue}{0} & & & \textcolor{blue}{1} & & & & & & & & & & \\
-	  	02 & & \textcolor{blue}{1} & \textcolor{red}{\text{-}2} & \textcolor{blue}{0} & & & \textcolor{blue}{1} & & & & & & & & & \\
+  		01 & \textcolor{blue}{0} & \textcolor{red}{\text{-}3} & \textcolor{blue}{0} & & & \textcolor{blue}{1} & & & & & & & & & & \\
+	  	02 & & \textcolor{blue}{1} & \textcolor{red}{\text{-}3} & \textcolor{blue}{0} & & & \textcolor{blue}{1} & & & & & & & & & \\
   		03 & & & \textcolor{blue}{0} & \textcolor{red}{\text{-}2} & & & & \textcolor{blue}{0} & & & & & & & & \\
-  		10 & \textcolor{blue}{0} & & & & \textcolor{red}{\text{-}2} & \textcolor{blue}{1} & & & \textcolor{blue}{0} & & & & & & & \\
-  		11 & & \textcolor{blue}{1} & & & \textcolor{blue}{1} & \textcolor{red}{\text{-}2} & \textcolor{blue}{1} & & & \textcolor{blue}{1} & & & & & & \\
-		12 & & & \textcolor{blue}{0} & & & \textcolor{blue}{1} & \textcolor{red}{\text{-}2} & \textcolor{blue}{0} & & & \textcolor{blue}{0} & & & & & \\
-		13 & & & & \textcolor{blue}{0} & & & \textcolor{blue}{1} & \textcolor{red}{\text{-}2} & & & & \textcolor{blue}{0} & & & & \\
-		20 & & & & & \textcolor{blue}{0} & & & & \textcolor{red}{\text{-}2} & \textcolor{blue}{1} & & & \textcolor{blue}{0} & & & \\
-		21 & & & & & & \textcolor{blue}{1} & & & \textcolor{blue}{0} & \textcolor{red}{\text{-}2} & \textcolor{blue}{0} & & & \textcolor{blue}{0} & & \\
-		22 & & & & & & & \textcolor{blue}{1} & & & \textcolor{blue}{1} & \textcolor{red}{\text{-}2} & \textcolor{blue}{0} & & & \textcolor{blue}{0} & \\
-		23 & & & & & & & & \textcolor{blue}{0} & & & \textcolor{blue}{0} & \textcolor{red}{\text{-}2} & & & & \textcolor{blue}{0}  \\
+  		10 & \textcolor{blue}{0} & & & & \textcolor{red}{\text{-}3} & \textcolor{blue}{1} & & & \textcolor{blue}{0} & & & & & & & \\
+  		11 & & \textcolor{blue}{1} & & & \textcolor{blue}{1} & \textcolor{red}{\text{-}4} & \textcolor{blue}{1} & & & \textcolor{blue}{1} & & & & & & \\
+		12 & & & \textcolor{blue}{0} & & & \textcolor{blue}{1} & \textcolor{red}{\text{-}4} & \textcolor{blue}{0} & & & \textcolor{blue}{0} & & & & & \\
+		13 & & & & \textcolor{blue}{0} & & & \textcolor{blue}{1} & \textcolor{red}{\text{-}3} & & & & \textcolor{blue}{0} & & & & \\
+		20 & & & & & \textcolor{blue}{0} & & & & \textcolor{red}{\text{-}3} & \textcolor{blue}{1} & & & \textcolor{blue}{0} & & & \\
+		21 & & & & & & \textcolor{blue}{1} & & & \textcolor{blue}{0} & \textcolor{red}{\text{-}4} & \textcolor{blue}{0} & & & \textcolor{blue}{0} & & \\
+		22 & & & & & & & \textcolor{blue}{1} & & & \textcolor{blue}{1} & \textcolor{red}{\text{-}4} & \textcolor{blue}{0} & & & \textcolor{blue}{0} & \\
+		23 & & & & & & & & \textcolor{blue}{0} & & & \textcolor{blue}{0} & \textcolor{red}{\text{-}3} & & & & \textcolor{blue}{0}  \\
 		30 & & & & & & & & & \textcolor{blue}{0} & & & & \textcolor{red}{\text{-}2} & \textcolor{blue}{0} & & \\
-		31 & & & & & & & & & & \textcolor{blue}{1} & & & \textcolor{blue}{0} & \textcolor{red}{\text{-}2} & \textcolor{blue}{0} & \\
-		32 & & & & & & & & & & & \textcolor{blue}{0} & & & \textcolor{blue}{0} & \textcolor{red}{\text{-}2} & \textcolor{blue}{0}  \\
+		31 & & & & & & & & & & \textcolor{blue}{1} & & & \textcolor{blue}{0} & \textcolor{red}{\text{-}3} & \textcolor{blue}{0} & \\
+		32 & & & & & & & & & & & \textcolor{blue}{0} & & & \textcolor{blue}{0} & \textcolor{red}{\text{-}3} & \textcolor{blue}{0}  \\
 		33 & & & & & & & & & & & & \textcolor{blue}{0} & & & \textcolor{blue}{0} & \textcolor{red}{\text{-}2} \\
 	\end{block}
 	\end{blockarray}

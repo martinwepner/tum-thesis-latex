@@ -8,7 +8,7 @@ In this chapter we find an efficient numerical approach to solve the system of l
 \textit{maskDimensions} is an array that holds the  extended dimensions of the grid.\\
 
 \section{Laplace Matrix generation}
-The goal of this section is to find a parallelizable algorithm that creates the Laplace Matrix \textbf{A}. We want the GPU to compute exactly one cell $(i,j)$ or one row in \textbf{A} per thread. Since \textbf{A} is sparse we can store it in the well-known \textit{compressed sparse row} (CSR) [TODO: No paper found] format. The CSR format stores a sparse matrix in three arrays:\\\\
+The goal of this section is to find a parallelizable algorithm that creates the Laplace Matrix \textbf{A}, so that a GPU can compute exactly one cell $(i,j)$ or one row in \textbf{A} per thread. Since \textbf{A} is sparse we can store it in the well-known \textit{compressed sparse row} (CSR) [TODO: No paper found] format. The CSR format stores a sparse matrix in three arrays:\\\\
 \begin{tabular}{ll}
 	\textit{data}: & stores all non-zero entries in row-major order.\\
 	\textit{columptr}: & stores for all non-zero entries their column index in row-major order.\\
@@ -31,7 +31,7 @@ The goal of this section is to find a parallelizable algorithm that creates the 
 \caption{Example Matrix in CSR format}\label{fig:csr-matrix}
 \end{figure*}
 \newpage
-\par However, the CSR format would save us a lot of memory but on the other hand will require three costly memory accesses to get all the data of one entry which is also not optimal. \\
+\par The CSR format saves us a lot of memory, however, it will require three memory accesses to get all the data of one entry. Compared to pure computation, memory accesses are very costly on GPUs and should be kept low as possible. Take a look back on Fig. \ref{fig:laplace-matrix} and you probably see some kind of regularity. 
 
 
 \newpage
