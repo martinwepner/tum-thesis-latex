@@ -37,6 +37,7 @@
 \usepackage{subcaption}
 \usepackage{blkarray}
 \usepackage{mathtools}
+\usepackage{setspace}
 
 
 \bibliography{bibliography}
@@ -78,6 +79,10 @@
   keywordstyle=\bfseries\color{TUMBlue},
   stringstyle=\color{TUMAccentGreen}
 }
+
+\makeatletter
+\newcommand*{\rom}[1]{\expandafter\@slowromancap\romannumeral #1@}
+\makeatother
 
 
 \newcommand*{\ColorCells}[1]{

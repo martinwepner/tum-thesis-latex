@@ -11,7 +11,7 @@ In this chapter, we find an efficient numerical approach to solve the system of 
 The goal of this section is to find a parallelizable algorithm that creates the Laplace Matrix A, so that a GPU can compute exactly one cell $(i,j)$ or one row in \textbf{A} per thread.
 \par GPU memory is very limited. For a simulation of the size $64 \text{ x } 64 \text{ x } 64$ the dimension of the Laplace Matrix is $262.144 \text{ x } 262.144$. This would require 256 Gigabyte of GPU-memory if we tried to cache the matrix naively, which is not possible without further ado at the time of this writing. 
 \par Take a look back on the example Laplace Matrix in Fig. \ref{fig:laplace-matrix}. Notice, that most of it is zero. In fact, there are only at most as many non-zero entries as the number of neighbors of a cell plus one for the cell itself. For 2D this means at most five and for 3D at most seven entries per row. Or in general $maxNonZerosPerRow = dimSize * 2 + 1$.
-\par The \textit{compressed sparse row} (CSR) [TODO: No paper found] format tackles this problem by only storing information of non-zero entries of a sparse Matrix. It consists of three arrays:\\\\
+\par The \textit{compressed sparse row} (CSR) [TODO: No paper found] format tackles this memory problem by only storing information of non-zero entries of a sparse Matrix. It consists of three arrays:\\\\
 \begin{tabular}{ll}
 	\textit{data\label{csr-data}}: & stores all non-zero entries in row-major order.\\
 	\textit{columnptr\label{csr-columnptr}}: & stores for all non-zero entries their column index in row-major order.\\
@@ -39,7 +39,7 @@ The goal of this section is to find a parallelizable algorithm that creates the 
 [TODO: Insert naive algorithm here]
 
 
-\subsection{Optimization 1: Abandonment of CSR \hyperref[csr-rowcnt]{\textit{rowcnt}} array}
+\subsection{Optimization \rom{1}: Abandonment of CSR \hyperref[csr-rowcnt]{\textit{rowcnt}} array}\label{optimization1}
 The $i$th element of the \hyperref[csr-rowcnt]{\textit{rowcnt}} array points to the index in \hyperref[csr-data]{\textit{data}} of the first non-zero entry of the $i$th row. So for every row $i$ we know that all non-zero entries of this row lay in the range $\big[\text{\hyperref[csr-rowcnt]{\textit{rowcnt}}[i] ; \hyperref[csr-rowcnt]{\textit{rowcnt}}[i+1]}\big[$ in the \hyperref[csr-data]{\textit{data}} array. 
 \par The maximum number of non-zero entries per row in the Laplace Matrix is $maxNonZerosPerRow$ as defined above. It is only the maximum possible number of non-zeros because neighbor cells of $(i,j)$ might be air or solid cells, thus zero in the $(i,j)$th row of the Laplace Matrix. For cells at the edge of the grid, we set the corresponding value for neighbor cells that lay outside the grid to zero in the \hyperref[csr-data]{\textit{data}} array as well. The CSR format will remove those zero entries but if we keep them, we have a regular arrangement of \hyperref[csr-data]{\textit{data}} entries per row. As a trade-of this will require slightly more memory. However now we are able calculate the index of the row $i_{row}$ of any \hyperref[csr-data]{\textit{data}} entry by its index $i_{data}$:
 \begin{equation} \label{row-index-by-data-index}
@@ -48,13 +48,42 @@ The $i$th element of the \hyperref[csr-rowcnt]{\textit{rowcnt}} array points to 
 [\dots]
 \newpage
 
-\subsection{Optimization 2: Merge CSR \hyperref[csr-data]{\textit{data}} and \hyperref[csr-columnptr]{\textit{columnptr}} arrays}
-Another observation we can make from equation \ref{pressure-equation} and Fig. \ref{fig:laplace-matrix} is that the values of \hyperref[csr-data]{\textit{data}} in the range [$-2 \cdot dimSize$ ; 1]. Using an $INT32$ with 32 bits is a waste of memory. Instead a $INT8$ is more than enough (except in the unlikely event that you want to simulate more than 127 dimensions).  
-
+\begin{figure*}
 \[
-  INT32: \underbrace{\;0\,0\,0\,0\:\:1\,1\,1\,1\;\;0\,0\,0\,0\:\:1\,1\,1\,1\;\;0\,0\,0\,0\:\:1\,1\,1\,1\;}_\text{columnidx}\;\;\underbrace{\;0\,0\,0\,0\:\:1\,1\,1\,1\;}_\text{data} 
+  merged = \underbrace{\underbrace{\;0\,0\,0\,0\:\:1\,1\,1\,1\;\;0\,0\,0\,0\:\:1\,1\,1\,1\;\;0\,0\,0\,0\:\:1\,1\,1\,1\;}_\text{\hyperref[csr-columnptr]{\textit{columnptr}}, 24 bit}\;\;\underbrace{\;0\,0\,0\,0\:\:1\,1\,1\,1\;}_\text{\hyperref[csr-data]{\textit{data}}, 8 bit}}_{INT32}
 \]
+\caption{\hyperref[csr-data]{\textit{data}} and \hyperref[csr-columnptr]{\textit{columnptr}} entry merged into one $INT32$}
+\label{fig:data-columnptr-merge}
+\end{figure*} 
 
+\subsection{Optimization \rom{2}: Merge of CSR \hyperref[csr-data]{\textit{data}} and \hyperref[csr-columnptr]{\textit{columnptr}} arrays}
+Another observation we can make from equation \ref{pressure-equation} and Fig. \ref{fig:laplace-matrix} is that the values of the \hyperref[csr-data]{\textit{data}} array are in the range [$-2 \cdot dimSize$ ; 1]. Using an $INT32$ is a waste of memory. Instead an $INT8$ is more than enough (except in the unlikely case that you want to simulate more than 127 dimensions). To reduce memory accesses we can merge pairs of \hyperref[csr-data]{\textit{data}} and \hyperref[csr-columnptr]{\textit{columnptr}} into one single $INT32$ as stated in Fig \ref{fig:data-columnptr-merge}. 
+\par Now writing a pair of \hyperref[csr-data]{\textit{data}} and \hyperref[csr-columnptr]{\textit{columnptr}} requires to shift \hyperref[csr-columnptr]{\textit{columnptr}} 8 bit to the left and add  \hyperref[csr-data]{\textit{data}} using bitwise OR masking.
+\par Reading is similar: For \hyperref[csr-columnptr]{\textit{columnptr}} first remove \hyperref[csr-data]{\textit{data}} from $merged$ using bitwise AND with 0xFFFFFF00 then shift the result 8 bit to the right. To read \hyperref[csr-data]{\textit{data}}, mask off \hyperref[csr-columnptr]{\textit{columnptr}} from $merged$ with the 0xFF.
+\par Now we reduced the amount of memory reads for one matrix entry from three to one. However, this optimization comes with a major drawback: \hyperref[csr-columnptr]{\textit{columnptr}} only has 24 bit left to address the column indices of the Laplace Matrix. Remember, the Laplace matrix correlates all cells, meaning we need $dimProduct$ columns and rows. So this optimization is only compliant for simulations with $dimProduct \leq 2^{24}$. In the next section we learn that we can even get rid of \hyperref[csr-columnptr]{\textit{columnptr}} at all.
+\newpage
+\begin{figure*}
+\centering
+\[
+	\hyperref[csr-data]{\textit{data}} = \left[ 
+	\underbrace{\text{ \textcolor{brown}{0}, \textcolor{brown}{0}, \textcolor{red}{-2}, \textcolor{blue}{1}, \textcolor{blue}{1}}}_{i_{row} = 0} \text{ , }
+	\underbrace{\text{ \textcolor{brown}{0}, \textcolor{blue}{0}, \textcolor{red}{-3}, \textcolor{blue}{0}, \textcolor{blue}{1}}}_{i_{row} = 1} \text{ , }
+	\underbrace{\text{ \textcolor{brown}{0}, \textcolor{blue}{0}, \textcolor{red}{-3}, \textcolor{blue}{0}, \textcolor{blue}{1}}}_{i_{row} = 2} \text{ , }
+	\underbrace{\text{ \textcolor{brown}{0}, \textcolor{blue}{0}, \textcolor{red}{-2}, \textcolor{brown}{0}, \textcolor{blue}{0}}}_{i_{row} = 3} \text{ , }
+	\underbrace{\text{ \textcolor{blue}{0}, \textcolor{brown}{0}, \textcolor{red}{-3}, \textcolor{blue}{1}, \textcolor{blue}{0}}}_{i_{row} = 4} \text{ , }
+	\dots
+	\right]
+\]
+\caption{The corresponding \hyperref[csr-data]{\textit{data}} array originating from Fig. \ref{fig:laplace-matrix}\\
+Diagonal entries are red.\\
+Neighbor cells are blue if they are within the grid and brown otherwise.
+}
+\label{fig:data-columnptr-me1rge}
+\end{figure*} 
+
+\subsection{Optimization \rom{3}: Abandonment of CSR \hyperref[csr-columnptr]{\textit{columnptr}}}
+More in-depth inspection of Fig. \ref{fig:laplace-matrix} reveals that non-zeros always appear by the same distances to the diagonal of each row. Of course, this is due to the fact that the respective neighbors on the linearized grid lie at the same distance from each other for every cell accordingly. Because of Optimization \rom{1} (\ref{optimization1}) and because we insert the matrix entries in row-major format, this regularity is also applicable for the \hyperref[csr-data]{\textit{data}} array. With this knowledge we can extract a method to infer from each \hyperref[csr-data]{\textit{data}} entry the respective column index $i_{column}$ via the data index $i_{data}$.
+\par 
 
 \newpage
 \begin{algorithm}
