@@ -22,10 +22,6 @@ $\nu$ is called kinematic viscosity. The higher the viscosity of a fluid is the 
     \nabla \cdot u = 0
 \end{equation}
 
-\section{Staggered MAC-grids}
-Grid-based fluid simulations have been discussed in this work already, but not yet clarified what's exactly meant by "grid". To numerically approximate the Navier Stokes equations, quantities like pressure, velocity and fluid density needs to be computed through space. As the name suggests, those quantities are laid out on some regular grid. [Harlow and Welch 1965] have developed the Marker-and-Cell (MAC) grid technique which many simulators still use. Instead of tracking all quantities on the same grid, they are staggered on the grid. This staggering avoids biased or null spaced central differences for the pressure gradient. 
-\par TODO Figures of grids 
-
 \section{The role of the pressure solve in incompressible Navier Stokes equations}
 The pressure solve is part of the Navier Stokes equations:
 \begin{equation} \label{navier-stokes-pressure}
@@ -65,7 +61,7 @@ Substituting \ref{velocity-update1} and \ref{velocity-update2} into \ref{numeric
 Now we have a system of linear equations in the form of 
 
 \begin{equation} \label{pressure-equation-shortened}
-	\mathbf{A}p = \frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n
+	\mathbf{A}\vec{p} = \frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n
 \end{equation}
 $\mathbf{A}$ is symmetric and each row represents one cell $(i, j)$ on the grid. 
 
@@ -92,7 +88,7 @@ From equation \ref{pressure-equation} we know that for one pressure update of on
 \newpage
 
 \section{ The Laplace Matrix }
-Taking a closer look and with some rearrangements on equation \ref{pressure-equation} shows that it is an approximation of the Poisson problem $\frac{-\Delta t}{\rho} \nabla \cdot \nabla p = - \nabla \cdot \vec{u}$. Because of that I call $\mathbf{A}$ \textit{Laplace Matrix} in the following. 
+Taking a closer look and with some rearrangements on equation \ref{pressure-equation} shows that it is an approximation of the Poisson problem $\frac{-\Delta t}{\rho} \nabla \cdot \nabla \vec{p} = - \nabla \cdot \vec{u}$. Because of that I call $\mathbf{A}$ \textit{Laplace Matrix} in the following. 
 \par To implement a method that extracts the Laplace Matrix, we need to take a look on the boundary conditions first. Assume a grid cell $(i,j)$ of which one neighbor $(i-1,j)$ is an air cell (\textcolor{blue}{$p_{i-1,j}=0$}) and another $(i+1, j)$ is a solid cell (\textcolor{brown}{$p_{i+1,j}= p_{i,j} + \frac{\rho \Delta x}{\Delta t} (u_{i+1/2,j} - u_{solid})$}). The remaining neighbors are fluid cells. Knowing that, we can rearrange \ref{pressure-equation} to the following:
 \begin{equation} \label{pressure-equation-with-boundaries}
     \begin{aligned}
