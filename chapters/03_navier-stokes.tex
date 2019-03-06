@@ -1,20 +1,20 @@
-\chapter{Navier Stokes Equations}\label{chapter:cudapressuresolver}
+\chapter{Numerical approaches for simulating fluids}\label{chapter:cudapressuresolver}
 
-The fundamentals of any fluid simulation lay in the Navier Stokes equations:\\
+Incompressible fluids are described by Navier Stokes equations:\\
 \begin{equation} \label{navier-stokes1}
     \frac{\partial \vec{u}}{\partial t} + \vec{u} \cdot \nabla \vec{u} + \frac{1}{\rho}  \nabla p = \vec{F} + \nu \nabla \cdot \nabla \vec{u}
 \end{equation}
 \begin{equation} \label{navier-stokes2}
     \nabla \cdot u = 0
 \end{equation}
-The letter $\vec{u}$ is the velocity vector of the fluid.\\
-The Greek letter Rho $\rho$ stands for the density of the fluid. E.g. $\rho_{Water} \approx 1000 kg/m^3$. \\
-The Arabic $p$, on the other hand, holds the pressure, which is the force per unit the fluid exerts on its surroundings. Note $\rho \neq p$.\\
-External forces like gravity and buoyancy are collected in the letter $\vec{F}$.\\
-The Greek letter Nu $\nu$ is called kinematic viscosity. The higher the viscosity of a fluid is the higher its inherent inertia. For example, honey has a higher viscosity than water.\\
-\par The first of those equations - the "momentum equation" - very briefly describes how the fluid accelerates due to the forces acting on it. The second is called "incompressibility condition" and means that the "volume?!" of the fluid doesn't change.
-\par However, real fluids are compressible, so why do we assume them to be incompressible? Liquid fluids are in theory compressible, but it requires a lot of force to do so, and it is also only possible until a small degree of compression. Gases like air are easier to compress, but only with the help of pumps or extreme situations like blast waves caused by for example explosions. Those kind of scenarios are called "compressible flow" and are expensive to simulate. Additionally, they are only visible on a macroscopic level and hence irrelevant for the animation of fluids.
-\par Viscosity needs to be considered only in those cases where animating viscous fluids like honey is desired. For most cases, however, it plays a minor role and can be dropped. Those ideal fluids without viscosity are called "inviscid". The Navier Stokes equations can then be simplified to the following, the so-called "Euler Equations":
+Here, $\vec{u}$ denotes the velocity vector of the fluid.\\
+$\rho$ stands for the density of the fluid. E.g. $\rho_{Water} \approx 1000 kg/m^3$. \\
+$p$, on the other hand, holds the pressure, which is the force per unit the fluid exerts on its surroundings.\\
+$\vec{F}$ denotes external forces such as gravity and buoyancy.\\
+$\nu$ is called kinematic viscosity. The higher the viscosity of a fluid is the higher its inherent inertia. For example, honey has a higher viscosity than water.\\
+\par Equation \ref{navier-stokes1} - the "momentum equation" - very briefly describes how the fluid accelerates due to the forces acting on it. Eq. \ref{navier-stokes2} is called "incompressibility condition" and means that the "volume?!" of the fluid doesn't change.
+\par If real fluids were incompressible, we couldn't hear anything underwater \parencite{urick1967principles}, so why do we assume them to be incompressible? Liquids are practically incompressible - it requires a lot of force to do so, and it is also only possible until a small degree of compression \parencite{kell1975density}. Gases like air are easier to compress, but only with the help of pumps \parencite{burenga1978portable} or extreme situations like blast waves caused by for example explosions \parencite{taylor1950formation} \parencite{taylor1950formation2}. Those kind of scenarios are called "compressible flow" and are expensive to simulate \parencite{poinsot1992boundary}. Additionally, they are only visible on a macroscopic level and hence irrelevant for the animation of fluids \parencite{bridson2015fluid}.
+\par Viscosity needs to be considered only in those cases where animating viscous fluids like honey is desired \parencite{bridson2015fluid}. For most cases, however, it plays a minor role and can be dropped. Those ideal fluids without viscosity are called "inviscid". The Navier Stokes equations can then be simplified to the following, the so-called "Euler Equations":
 \begin{equation} \label{euler-equation1}
     \frac{\partial \vec{u}}{\partial t} + \frac{1}{\rho}  \nabla p = \vec{F}
 \end{equation}
@@ -35,7 +35,7 @@ This means, that the pressure always needs to be so, that it advects the velocit
 
 \subsection{Discretization and derivation of the pressure equation}
 In this section, we briefly derive a numerical approximation for the pressure equation of the Navier Stokes equations with the help of a MAC-grid for two-dimensional simulations. Bridson \parencite{bridson2015fluid} \parencite{bridson2007fluid} already explained this for both 2D and 3D in detail.\\
-Discretizing \ref{navier-stokes-pressure} gives the following equations:
+Discretizing \ref{navier-stokes-pressure} in time and space gives for a discrete point in time $n$ the following equations:
 \begin{equation} \label{navier-stokes-pressure-numerical1}
     \vec{u}^{n+1} = \vec{u}^{n} - \Delta t \frac{1}{\rho} \nabla p \quad s.t. \quad \nabla \cdot \vec{u}^{n+1} = 0
 \end{equation}
@@ -59,15 +59,20 @@ Substituting \ref{velocity-update1} and \ref{velocity-update2} into \ref{numeric
     \begin{aligned}
         & \frac{1}{\Delta x}\left[\left(u_{i+1/2,j}^{n} - \Delta t \frac{1}{\rho} \frac{p_{i+1,j} - p_{i,j}}{\Delta x}\right) - \left(u_{i-1/2,j}^{n} - \Delta t \frac{1}{\rho} \frac{p_{i-1,j} - p_{i,j}}{\Delta x}\right) \right. \\
         & + \left. \left(v_{i,j+1/2}^{n} - \Delta t \frac{1}{\rho} \frac{p_{i,j+1} - p_{i,j}}{\Delta x}\right) - \left(v_{i,j-1/2}^{n} - \Delta t \frac{1}{\rho} \frac{p_{i,j-1} - p_{i,j}}{\Delta x} \right) \right] = 0 \\\\
-        &  - 4p_{i,j} + p_{i+1,j} + p_{i,j+1} + p_{i-1,j} + p_{i,j-1} = \frac{\rho \Delta x^2}{\Delta t} \left( \frac{u_{i+1/2,j}^{n} - u_{i-1/2,j}^{n}}{\Delta x} + \frac{v_{i,j+1/2}^{n} - v_{i,j-1/2}^{n}}{\Delta x} \right)
+        &  - 4p_{i,j} + p_{i+1,j} + p_{i,j+1} + p_{i-1,j} + p_{i,j-1} = \frac{\rho \Delta x}{\Delta t} \left(u_{i+1/2,j}^{n} - u_{i-1/2,j}^{n} + v_{i,j+1/2}^{n} - v_{i,j-1/2}^{n}\right)
 \end{aligned}
 \end{equation}
-Now we have a bunch of linear equations in the form of $\mathbf{A}p = \frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n$. $\mathbf{A}$ is symmetric and each row represents one cell $(i, j)$ on the grid. 
+Now we have a system of linear equations in the form of 
+
+\begin{equation} \label{pressure-equation-shortened}
+	\mathbf{A}p = \frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n
+\end{equation}
+$\mathbf{A}$ is symmetric and each row represents one cell $(i, j)$ on the grid. 
 
 
 \subsection{Boundary Conditions}
 \subsubsection{Solids}
-If an inviscid fluid is in contact with a wall respective solid, it should move in the tangential direction of the solids normal. To achieve this the velocity components of the solid normal needs to match the speed of the fluid at this position:
+If an inviscid fluid is in contact with a wall, it cannot move into or out of the boundary. To achieve this the velocity components of the solid normal needs to match the speed of the fluid at this position:
 \begin{equation} \label{navier-stokes12}
     \vec{u} \cdot \hat{n} = \vec{u}_{solid} \cdot \hat{n}
 \end{equation}
@@ -75,20 +80,19 @@ Concerning the pressure update, assume grid cell $(i,j)$ to be fluid and its nei
 \begin{equation} \label{navier-stokes12}
     p_{i+1,j} = p_{i,j} + \frac{\rho \Delta x}{\Delta t} (u_{i+1/2,j} - u_{solid})
 \end{equation}
-This is called Neumann boundary condition.
+This is called Neumann boundary condition because the derivative of the solution is specified along the boundary.
 
 \subsubsection{Air}
-Compared to water, air is 700 times lighter. For simplicity, the pressure $p$ of air regions may be set to zero since it has only minimal impact and therefore no significant visual effect. Since we directly specify the value of the pressure at those air cells it is called a Dirichlet boundary condition.
+Compared to water, air is about 780 times lighter. For simplicity, the pressure $p$ of air regions may be set to zero since it has only minimal impact and therefore no significant visual effect. Since we directly specify the value of the pressure at those air cells it is called a Dirichlet boundary condition.
 
 
 \subsubsection{Extended MAC-grid}
-As we figured in \ref{pressure-equation} for one pressure update of one cell we need to consider all its neighbors. What about those grid cells laying on the edge of the grid? Technically those cells have fewer neighbors than the others. To solve this issue, we extend the grid that holds the information about the state (fluid, solid, air) on every dimension. So for a (n x m) sized simulation, we need an (n+2 x m+2) grid that holds the information. We differ between open boundaries where those extended cells are just air cells and closed boundaries where solid cells surround the grid.
-\par TODO figure of those masks
+From equation \ref{pressure-equation} we know that for one pressure update of one cell we need to consider all its neighbors. What about those grid cells lying on the edge of the grid? Technically those cells have fewer neighbors than the others. To solve this issue, we extend the grid that holds the information about the state (fluid, solid, air) on every dimension. So for a (n x m) sized simulation, we need an (n+2 x m+2) grid that holds the information. We differ between open boundaries where those extended cells are just air cells and closed boundaries where solid cells surround the grid.
 
 \newpage
 
 \section{ The Laplace Matrix }
-Taking a closer look and with some rearrangements on equation \ref{pressure-equation} shows that it is an approximation of the Poisson problem $-\Delta t / \rho \nabla \cdot \nabla p = - \nabla \cdot \vec{u}$. Because of that I call $\mathbf{A}$ \textit{Laplace Matrix} in the following. 
+Taking a closer look and with some rearrangements on equation \ref{pressure-equation} shows that it is an approximation of the Poisson problem $\frac{-\Delta t}{\rho} \nabla \cdot \nabla p = - \nabla \cdot \vec{u}$. Because of that I call $\mathbf{A}$ \textit{Laplace Matrix} in the following. 
 \par To implement a method that extracts the Laplace Matrix, we need to take a look on the boundary conditions first. Assume a grid cell $(i,j)$ of which one neighbor $(i-1,j)$ is an air cell (\textcolor{blue}{$p_{i-1,j}=0$}) and another $(i+1, j)$ is a solid cell (\textcolor{brown}{$p_{i+1,j}= p_{i,j} + \frac{\rho \Delta x}{\Delta t} (u_{i+1/2,j} - u_{solid})$}). The remaining neighbors are fluid cells. Knowing that, we can rearrange \ref{pressure-equation} to the following:
 \begin{equation} \label{pressure-equation-with-boundaries}
     \begin{aligned}
@@ -107,7 +111,7 @@ which results in
       \item $\mathbf{A}$ is similar to an adjacency matrix. Every row represents one cell $(i,j)$ and every column all cells on the MAC-grid. Non-neighbor entries of $\mathbf{A}$ are 0.
       \item Note that the coefficient of $p_{i,j}$ in \ref{pressure-equation} matches the negative number of neighbors of a cell $(i,j)$. Let's call this coefficient $k_{diagonal} = -dim(grid) * 2$, since it is always on the diagonal of $\mathbf{A}$'s entries.
       \item Every neighbor of cell $(i,j)$ is 1 in the corresponding row of $\mathbf{A}$.
-      \item For every neighbor of cell $(i,j)$ that is a solid cell decrement $k_{diagonal}$ and set the corresponding column to 0.
+      \item For every neighbor of cell $(i,j)$ that is a solid cell increment $k_{diagonal}$ and set the corresponding column to 0.
       \item For every neighbor of cell $(i,j)$ that is an air cell set the corresponding column to 0.
 \end{itemize}
 With that in mind, we can derive an algorithm which builds $\mathbf{A}$. Note that most of $\mathbf{A}$ is zero so it is a sparse matrix. Also, because of the symmetry of neighboring cells, $\mathbf{A}$ is symmetric.
