@@ -41,7 +41,7 @@ The divergence of a 2 dimensional vector $\vec{u} = (u, v)$ is defined as
 \end{equation}
 So for a fluid grid cell $(i, j)$:
 \begin{equation} \label{numerical-divergence-velocity}
-    (\nabla \cdot \vec{u})_{i,j} \approx \frac{u_{i+1/2,j}^{n+1} - u_{i-1/2,j}^{n+1}}{\Delta x} + \frac{v_{i,j+1/2}^{n+1} - v_{i,j-1/2}^{n+1}}{\Delta x}
+    (\nabla \cdot \vec{u})_{i,j} = \frac{u_{i+1/2,j}^{n+1} - u_{i-1/2,j}^{n+1}}{\Delta x} + \frac{v_{i,j+1/2}^{n+1} - v_{i,j-1/2}^{n+1}}{\Delta x} + \mathcal{O}(\Delta x^2)
 \end{equation}
 Using the central difference for $\frac{\partial p}{\partial x}$ and $\frac{\partial p}{\partial y}$ the velocity update is:
 \begin{equation} \label{velocity-update1}
@@ -78,7 +78,7 @@ Concerning the pressure update, assume grid cell $(i,j)$ to be fluid and its nei
 \end{equation}
 This is called Neumann boundary condition because the derivative of the solution is specified along the boundary.
 
-\subsubsection{Air}
+\subsubsection{Open/Air}
 Compared to water, air is about 780 times lighter. For simplicity, the pressure $p$ of air regions may be set to zero since it has only minimal impact and therefore no significant visual effect. Since we directly specify the value of the pressure at those air cells it is called a Dirichlet boundary condition.
 
 

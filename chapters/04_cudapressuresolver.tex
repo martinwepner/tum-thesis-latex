@@ -6,13 +6,13 @@ In this chapter, we find an efficient numerical approach to solve the system of 
 	\item \textit{dimensions} is an array which holds the size of each dimension of the grid.
 	\item \textit{dimSize} holds the number of dimensions.
 	\item \textit{dimProduct} is the product $\prod_{i=0}^{dimSize} \textit{dimensions}[i]$ of all dimensions. 
-	\item \textit{mask} holds the information of fluid, air and solid cells including the boundary cells.
+	\item \textit{mask} holds the information of fluid, open and solid cells including the boundary cells.
 	\item \textit{maskDimensions} is an array that holds the dimensions of the mask.
 \end{itemize}
 
 \section{GPU Laplace Matrix generation}
 The goal of this section is to find a parallelizable algorithm that creates the Laplace Matrix A, so that a GPU can compute exactly one cell $(i,j)$ or one row of \textbf{A} per thread.
-\par GPU memory is very limited. For a simulation of the size 64 x 64 x 64 the dimension of the Laplace Matrix is 262.144 x 262.144. This would require 256 Gigabyte of GPU-memory if we tried to cache the matrix with 32 bit floats.  
+\par GPU memory is very limited. For a simulation of the size 64 x 64 x 64 the dimension of the Laplace Matrix is 262.144 x 262.144. This would require 256 gigabyte of GPU-memory if we tried to cache the matrix with 32 bit numbers. At the time of this writing this is only possible with special GPUs that have additional GPU-SSD memory.
 \par Take a look back on the example Laplace Matrix in Fig. \ref{fig:laplace-matrix}. Notice, that most of it is zero. In fact, there are only at most as many non-zero entries as the number of neighbors of a cell plus one for the cell itself:
 \begin{equation}
 	maxNonZerosPerRow = dimSize * 2 + 1
@@ -43,33 +43,15 @@ For 2D this means at most five and for 3D at most seven entries per row.
 \end{tabular}\\\\
 Because \textbf{A} is sparse to a vast extent, the CSR format reduces memory consumption dramatically. However, it requires three memory accesses to get all data of one entry. Compared to pure computation, memory accesses are very costly on GPUs and should be kept as low as possible \parencite{fang2018benchmarking}\parencite{fujii2013data}. To improve speed, reducing those memory accesses is crucial.
 
-[TODO: Insert naive algorithm here]
-\newpage
-
-
-\subsection{Optimization \rom{1}: Abandonment of CSR \hyperref[csr-rowcnt]{\textit{rowcnt}} array}\label{optimization1}
+\subsection{Tailoring the CSV format for the GPU pressure solve}\label{laplace-optimization}
 For every row $i$ we know that all non-zero entries of this row lay in the range $\big[\text{\hyperref[csr-rowcnt]{\textit{rowcnt}}[i] ; \hyperref[csr-rowcnt]{\textit{rowcnt}}[i+1]}\big[$ in the \hyperref[csr-data]{\textit{data}} array. 
-\par The maximum number of non-zero entries per row in the Laplace Matrix is $maxNonZerosPerRow$ as defined above. It is only the maximum possible number of non-zeros because neighbor cells of $(i,j)$ might be open or solid cells, thus zero in the $(i,j)$th row of the Laplace Matrix. For cells at the edge of the grid, we set the corresponding value for neighbor cells that lay outside the grid to zero in the \hyperref[csr-data]{\textit{data}} array as well. The CSR format will remove those zero entries but if we keep them, we have a regular arrangement of \hyperref[csr-data]{\textit{data}} entries per row. As a trade-of this will require slightly more memory. However now we are able calculate the index of the row $i_{row}$ of any \hyperref[csr-data]{\textit{data}} entry by its index $i_{data}$:
+\par The maximum number of non-zero entries per row in the Laplace Matrix is $maxNonZerosPerRow$ as defined above. It is only the maximum possible number of non-zeros because neighbor cells of $(i,j)$ might be open or solid cells, thus zero in the $(i,j)$th row of the Laplace Matrix. For cells at the edge of the grid, we set the corresponding value for neighbor cells that lay outside the grid to zero in the \hyperref[csr-data]{\textit{data}} array as well. The CSR format would have removed those zero entries but if we keep them, we have a regular arrangement of \hyperref[csr-data]{\textit{data}} ($data_{regular}$)-entries per row. As a trade-of this will require slightly more memory. However we are now able to calculate the index of the row $i_{row}$ of any \hyperref[csr-data]{\textit{data}} entry by its index $i_{data}$:
 \begin{equation} \label{row-index-by-data-index}
 	i_{row} = \floor*{\frac{i_{data}}{maxNonZerosPerRow}}
 \end{equation}
-\par By getting rid of the \hyperref[csr-rowcnt]{\textit{rowcnt}} array we not only reduce memory accesses, it was also required to parallelize the Laplace Matrix generation algorithm. When a row in \textbf{A} for one cell $(i,j)$ is built we need to make sure, that the order of the data is inserted in row major order. If the GPU executes two cells for example $(i+1,j)$ and $(i,j)$ at the same time, the \hyperref[csr-data]{\textit{data}} array would violate the insertion order rule. With the regular arrangement every thread or cell has a pre-defined range in which it will insert the data.
+\par For efficient parallelizing, this step is indispensable. If the GPU executes two cells for example $(i+1,j)$ and $(i,j)$ in two threads at the same time and every \hyperref[csr-data]{\textit{data}} entry does not have a predefined place in the array, the threads would mix up their insertions and thus the row-major structure. Since $data_{regular}$ is now regular, each thread knows the exact position in $data_{regular}$ for every entry to comply the row-major order.
 \newpage
 
-\begin{figure*}
-\[
-  merged = \underbrace{\underbrace{\;0\,0\,0\,0\:\:1\,1\,1\,1\;\;0\,0\,0\,0\:\:1\,1\,1\,1\;\;0\,0\,0\,0\:\:1\,1\,1\,1\;}_\text{\hyperref[csr-columnptr]{\textit{columnptr}}, 24 bit}\;\;\underbrace{\;0\,0\,0\,0\:\:1\,1\,1\,1\;}_\text{\hyperref[csr-data]{\textit{data}}, 8 bit}}_{INT32}
-\]
-\caption{\hyperref[csr-data]{\textit{data}} and \hyperref[csr-columnptr]{\textit{columnptr}} entry merged into one $INT32$}
-\label{fig:data-columnptr-merge}
-\end{figure*} 
-
-\subsection{Optimization \rom{2}: Merge of CSR \hyperref[csr-data]{\textit{data}} and \hyperref[csr-columnptr]{\textit{columnptr}} arrays}
-Another observation we can make from equation \ref{pressure-equation} and Fig. \ref{fig:laplace-matrix} is that the values of the \hyperref[csr-data]{\textit{data}} array are integers in the range [$-2 \cdot dimSize$ ; 1]. Using an $INT32$ is a waste of memory. Instead an $INT8$ is more than enough (except in the unlikely case that you want to simulate more than 127 dimensions). To reduce memory accesses we can merge pairs of \hyperref[csr-data]{\textit{data}} and \hyperref[csr-columnptr]{\textit{columnptr}} into one single $INT32$ as stated in Fig \ref{fig:data-columnptr-merge}. 
-\par Now writing a pair of \hyperref[csr-data]{\textit{data}} and \hyperref[csr-columnptr]{\textit{columnptr}} requires to shift \hyperref[csr-columnptr]{\textit{columnptr}} 8 bit to the left and add  \hyperref[csr-data]{\textit{data}} using bitwise OR masking.
-\par Reading is similar: For \hyperref[csr-columnptr]{\textit{columnptr}} first remove \hyperref[csr-data]{\textit{data}} from $merged$ using bitwise AND with 0xFFFFFF00 then shift the result 8 bit to the right. To read \hyperref[csr-data]{\textit{data}}, mask off \hyperref[csr-columnptr]{\textit{columnptr}} from $merged$ with the 0x000000FF.
-\par Now we reduced the amount of memory reads for one matrix entry from three to one. However, this optimization comes with a major drawback: \hyperref[csr-columnptr]{\textit{columnptr}} only has 24 bit left to address the column indices of the Laplace Matrix. Remember, the Laplace matrix correlates all cells, meaning we need $dimProduct$ columns and rows. So this optimization is only compliant for simulations with $dimProduct \leq 2^{24}$ or for example a grid of the size 256 x 256 x 256. In the next section we learn that we can even get rid of \hyperref[csr-columnptr]{\textit{columnptr}} at all.
-\newpage
 \begin{figure*}
 \centering
 \[
@@ -82,46 +64,73 @@ Another observation we can make from equation \ref{pressure-equation} and Fig. \
 	\dots
 	\right]
 \]
-\caption{Vizualization of \hyperref[csr-data]{\textit{data}} array from Fig. \ref{fig:laplace-matrix}. Diagonal entries are printed in red. Neighbor cells are printed in blue if they are within the grid and brown otherwise.
+\caption{Vizualization of $data_{regular}$ array for Fig. \ref{fig:laplace-matrix}. Diagonal entries are printed in red. Neighbor cells are printed in blue if they are within the grid and brown otherwise.
 }
 \label{fig:data-columnptr-merge}
 \end{figure*} 
+\begin{figure*}
+\centering
+\[
+	diagonalOffset = \left[ \text{ -4, -1, \textcolor{red}{0}, 1, 4 } \right]
+\]
+\caption{$diagonalOffset$ array that corresponds to Fig. \ref{fig:laplace-matrix}.}
+\label{fig:data-columnptr-merge}
+\end{figure*} 
+More in-depth inspection of Fig. \ref{fig:laplace-matrix} reveals that neighbor-cell entries always appear by the same distances to the diagonal of each row. Of course, this is due to the fact that the respective neighbors on the linearized grid lie at the same distance from each other for every cell accordingly. This is also applicable to the $data_{regular}$ array: in respect to the diagonal (red) entries the neighbors always appear in the same order (Fig. \ref{fig:data-columnptr-merge}). With this knowledge we can extract a method to infer from each $data_{regular}$ entry the respective column index $i_{column}$ via the data index $i_{data}$. 
+\par To do this, we define a new helper array $diagonalOffsets$ which stores the column-index distance to the diagonal of every entry of a row.
+Here is an algorithm to create the $diagonalOffsets$ array:
 
-\subsection{Optimization \rom{3}: Abandonment of CSR \hyperref[csr-columnptr]{\textit{columnptr}}}
-More in-depth inspection of Fig. \ref{fig:laplace-matrix} reveals that non-zeros always appear by the same distances to the diagonal of each row. Of course, this is due to the fact that the respective neighbors on the linearized grid lie at the same distance from each other for every cell accordingly. Because of Optimization \rom{1} (\ref{optimization1}) and because we insert the matrix entries in row-major format, this regularity is also applicable for the \hyperref[csr-data]{\textit{data}} array. With this knowledge we can extract a method to infer from each \hyperref[csr-data]{\textit{data}} entry the respective column index $i_{column}$ via the data index $i_{data}$. 
-\par 
-
-
-
-\par [\dots]
-\par => Offset array zum Diagonal berechnen z.b. (-64, -1, 0, 1, 64) und damit dann $i_{column}$ ableiten
-
-\newpage
+\begin{algorithm}
+\caption{Creates an array containing the column offset for every neighbor of a row in \textbf{A} in respect to the diagonal}\label{diagonalOffsets}
+\begin{algorithmic}[1]
+\Function {Get diagonalOffsets}{$maxDataPerRow$, $dimensions$ }
+	\State $offsets = \left[ i_0, i_1, \cdots, i_{maxDataPerRow} \right]$  \Comment{Declare array of length $maxDataPerRow$}
+	\State $factor = 1$
+	\State $\mathbf{const}$ $diagonal = \floor*{\frac{maxNonZerosPerRow}{2}}$
+	\State 
+	\For{$i = 0,$ $offset = 1;$ $i < diagonal;$ $i$++$,$ $offset$++}
+    	\State $offsets[diagonal - offset] = -factor$
+        \State $offsets[diagonal + offset] = factor$
+        \State $factor = factor * dimensions[i]$
+	\EndFor
+	\State $offsets[diagonal] = 0$
+	\State \Return $offsets$
+	
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+Now getting the column index $i_{column}$ by an arbitrary $data_{regular}$ index $i_{data}$ is trivial:
+\begin{equation}
+\begin{aligned}
+	i_{column} & = \floor*{\frac{i_{data}}{maxNonZerosPerRow}} & + columnOffsets\left[ i_{data} \mod maxNonZerosPerRow \right]\\
+			   & = i_{row} & + columnOffsets\left[ i_{data} \mod maxNonZerosPerRow \right]\\
+\end{aligned}
+\end{equation}
 
 \section{GPU Pressure Solve}
-In the previous section we found an algorithm that creates and stores the Laplace Matrix efficiently on a GPUs. In this section I present how the system of linear equations $\mathbf{A}\vec{p} = \frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n$ (\ref{pressure-equation-shortened}) can be solved on GPUs using the Conjugate Gradient method. First, we simplify equation \ref{pressure-equation-shortened}
+In the previous section we found an algorithm that creates and stores the Laplace Matrix efficiently on GPUs. In this section I present how the system of linear equations $\mathbf{A}\vec{p} = \frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n$ (\ref{pressure-equation-shortened}) can be solved on GPUs using the Conjugate Gradient method. First, we simplify equation \ref{pressure-equation-shortened}:
 \begin{equation}
 	\mathbf{A}\vec{p} = \vec{d} 
 \end{equation}
-Now solving this system of linear equations with the cg-method works as follows
+Now solving this system of linear equations with the cg-method works as follows:
 
 \begin{algorithm}
 \caption{Pressure Solve with cg-method}\label{pressure-solve-cg}
 \begin{algorithmic}[1]
 \Function {Solve Pressure}{\textbf{A}, $\vec{d}$, $maxIterations$, $accuracy$ }
-	\State $\vec{m} \gets \vec{d}$ \Comment{Init helper variables}
-	\State $\vec{r} \gets \vec{d}$
-	\State $\vec{p} \gets 0$ \Comment{TODO initial guess?}
-	\For{$k \gets 1$ to $maxIterations$}
-		\State $\vec{z} \gets \mathbf{A} \vec{m}$ \label{calcZ} \Comment{calcZ}
-		\State $alpha \gets \frac{\vec{m} \bullet \vec{r}}{\vec{m} \bullet \vec{z}}$
-		\State $\vec{p} \gets \vec{p} + alpha \cdot \vec{m}$
-		\State $\vec{r} \gets \vec{r} - alpha \cdot \vec{z}$
-		\If {$ max_i(|\vec{r}_i|) < accuracy $} \label{checkResiduum} \Comment{Check residuum} 
+	\State $\vec{m} = \vec{d}$ \Comment{Init helper variables}
+	\State $\vec{r} = \vec{d}$
+	\State $\vec{p} = 0$ \Comment{TODO initial guess?}
+	\For{$k = 1$ to $maxIterations$}
+		\State $\vec{z} = \mathbf{A} \vec{m}$ \label{calcZ} \Comment{calcZ}
+		\State $alpha = \frac{\vec{m} \bullet \vec{r}}{\vec{m} \bullet \vec{z}}$
+		\State $\vec{p} = \vec{p} + alpha \cdot \vec{m}$
+		\State $\vec{r} = \vec{r} - alpha \cdot \vec{z}$
+		\If {$ max_i(|\vec{r}_i|) < accuracy $} \label{checkResiduum} \Comment{checkResiduum} 
 			\State \Return $\vec{p}$
 		\EndIf
-		\State $beta \gets - \frac{\vec{r} \bullet \vec{z}}{\vec{m} \bullet \vec{z}}$
-		\State $\vec{m} \gets \vec{r} + beta \cdot \vec{m}$
+		\State $beta = - \frac{\vec{r} \bullet \vec{z}}{\vec{m} \bullet \vec{z}}$
+		\State $\vec{m} = \vec{r} + beta \cdot \vec{m}$
 	\EndFor
 
 \State \Return $\vec{p}$
@@ -129,38 +138,53 @@ Now solving this system of linear equations with the cg-method works as follows
 \end{algorithmic}
 \end{algorithm}
 All mathematical operations but operation \ref{calcZ} and \ref{checkResiduum} can be executed by the highly optimized cuBLAS library which is part of CUDAs standard libraries. \\
-Obviously operation \ref{calcZ} is the most demanding because it involves a matrix-vector multiplication. Naively we would have to sum $dimProduct$ multiplications per entry of $\vec{z}$.
+Obviously operation \ref{calcZ} is the most demanding because it involves a matrix-vector multiplication. Now we can take advantage of the findings and optimization steps in the previous section. 
 
-\newpage
+
+\subsubsection{\hyperref[calcZ]{calcZ}}
+Without further ado, we can derive an algorithm to calculate $\vec{z}$ using \textbf{A} in the Tailored CSR format. Every thread computes one entry of the resulting vector. The row $rowID$ of this vector is given by the CUDA thread and block id:
 \begin{algorithm}
-\caption{My algorithm}\label{euclid}
+\caption{Multiplies \textbf{A} with an vector}\label{pressure-solve-cg}
 \begin{algorithmic}[1]
-\Procedure{MyProcedure}{1,2,3}
-\State $\textit{stringlen} \gets \text{length of }\textit{string}$
-\State $i \gets \textit{patlen}$
-\BState \emph{top}:
-\If {$i > \textit{stringlen}$} \Return false
-\EndIf
-\State $j \gets \textit{patlen}$
-\BState \emph{loop}:
-\If {$\textit{string}(i) = \textit{path}(j)$}
-\State $j \gets j-1$.
-\State $i \gets i-1$.
-\State \textbf{goto} \emph{loop}.
-\State \textbf{close};
-\EndIf
-\State $i \gets i+\max(\textit{delta}_1(\textit{string}(i)),\textit{delta}_2(j))$.
-\State \textbf{goto} \emph{top}.
-\EndProcedure
+\Function {calcZ}{$rowID$, \textbf{A}, $\vec{m}$, $\vec{z}$, $columnOffsets$ }
+	\If {$rowID < dimProduct$} 
+		\State $rowStartIndex = rowID * maxNonZerosPerRow$ 
+		\State $tmp = 0$ 
+		\For{$i = rowStartIndex;$ $i < rowStartIndex + maxNonZerosPerRow;$ $i$++}
+			\State $tmp = tmp + \mathbf{A}[i] * \vec{m}[row + columnOffsets[i - rowStartIndex]]$
+		\EndFor
+		\State $\vec{z}[rowID] = tmp$
+	\EndIf
+\EndFunction
 \end{algorithmic}
 \end{algorithm}
 
-\begin{algorithmic}
-\If {$i\geq maxval$}
-    \State $i\gets 0$
-\Else
-    \If {$i+k\leq maxval$}
-        \State $i\gets i+k$
-    \EndIf
-\EndIf
-\end{algorithmic}
+\subsubsection{\hyperref[checkResiduum]{checkResiduum}}
+The cg-method approximates the solution of a system of linear equations iteratively. It should terminate if all entries of the residuum vector $\vec{r}$ is smaller than the given $accuracy$. We introduce a new variable $finished$ and set it to true at the beginning of every cg-iteration. The \hyperref[checkResiduum]{checkResiduum} method searches for an entry in $\vec{r}$ to be greater than $accuracy$ in parallel. Every match sets $finished$ to false. When all checks have been done we can break the cg-iteration if $finished$ is still true.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
