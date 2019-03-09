@@ -117,10 +117,9 @@ Now solving this system of linear equations with the cg-method works as follows:
 \begin{algorithm}
 \caption{Pressure Solve with cg-method}\label{pressure-solve-cg}
 \begin{algorithmic}[1]
-\Function {Solve Pressure}{\textbf{A}, $\vec{d}$, $maxIterations$, $accuracy$ }
-	\State $\vec{m} = \vec{d}$ \Comment{Init helper variables}
-	\State $\vec{r} = \vec{d}$
-	\State $\vec{p} = 0$ \Comment{TODO initial guess?}
+\Function {Solve Pressure}{\textbf{A}, $\vec{d}$, $maxIterations$, $accuracy$, $\vec{p}_{0}$ }
+	\State $\vec{m} = \vec{r} = \vec{d} - \mathbf{A} \vec{p}_{0}$ \Comment{Init helper variables}
+	\State $\vec{p} = \vec{p}_{0}$
 	\For{$k = 1$ to $maxIterations$}
 		\State $\vec{z} = \mathbf{A} \vec{m}$ \label{calcZ} \Comment{calcZ}
 		\State $alpha = \frac{\vec{m} \bullet \vec{r}}{\vec{m} \bullet \vec{z}}$
@@ -137,21 +136,21 @@ Now solving this system of linear equations with the cg-method works as follows:
 \EndFunction
 \end{algorithmic}
 \end{algorithm}
-All mathematical operations but operation \ref{calcZ} and \ref{checkResiduum} can be executed by the highly optimized cuBLAS library which is part of CUDAs standard libraries. \\
+All mathematical operations except for operation \ref{calcZ} and \ref{checkResiduum} can be executed by the highly optimized cuBLAS library which is part of CUDAs standard libraries. \\
 Obviously operation \ref{calcZ} is the most demanding because it involves a matrix-vector multiplication. Now we can take advantage of the findings and optimization steps in the previous section. 
 
 
 \subsubsection{\hyperref[calcZ]{calcZ}}
 Without further ado, we can derive an algorithm to calculate $\vec{z}$ using \textbf{A} in the Tailored CSR format. Every thread computes one entry of the resulting vector. The row $rowID$ of this vector is given by the CUDA thread and block id:
 \begin{algorithm}
-\caption{Multiplies \textbf{A} with an vector}\label{pressure-solve-cg}
+\caption{Multiplies \textbf{A} with a vector}\label{pressure-solve-calc-z}
 \begin{algorithmic}[1]
 \Function {calcZ}{$rowID$, \textbf{A}, $\vec{m}$, $\vec{z}$, $columnOffsets$ }
 	\If {$rowID < dimProduct$} 
 		\State $rowStartIndex = rowID * maxNonZerosPerRow$ 
 		\State $tmp = 0$ 
 		\For{$i = rowStartIndex;$ $i < rowStartIndex + maxNonZerosPerRow;$ $i$++}
-			\State $tmp = tmp + \mathbf{A}[i] * \vec{m}[row + columnOffsets[i - rowStartIndex]]$
+			\State $tmp = tmp + \mathbf{A}[i] \cdot \vec{m}[rowID + columnOffsets[i - rowStartIndex]]$
 		\EndFor
 		\State $\vec{z}[rowID] = tmp$
 	\EndIf
