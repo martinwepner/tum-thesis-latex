@@ -12,7 +12,7 @@ In this chapter, we find an efficient numerical approach to solve the system of 
 
 \section{GPU Laplace Matrix generation}
 The goal of this section is to find a parallelizable algorithm that creates the Laplace Matrix A, so that a GPU can compute exactly one cell $(i,j)$ or one row of \textbf{A} per thread.
-\par GPU memory is very limited. For a simulation of the size 64 x 64 x 64 the dimension of the Laplace Matrix is 262.144 x 262.144. This would require 256 gigabyte of GPU-memory if we tried to cache the matrix with 32 bit numbers. At the time of this writing this is only possible with special GPUs that have additional GPU-SSD memory.
+\par GPU memory is very limited. For a simulation of the size 64 x 64 x 64 the dimension of the Laplace Matrix is 262.144 x 262.144. This would require 256 GB of GPU-memory if we tried to cache the matrix with 32 bit numbers. At the time of this writing this is only possible with special GPUs that have additional GPU-SSD memory.
 \par Take a look back on the example Laplace Matrix in Fig. \ref{fig:laplace-matrix}. Notice, that most of it is zero. In fact, there are only at most as many non-zero entries as the number of neighbors of a cell plus one for the cell itself:
 \begin{equation}
 	maxNonZerosPerRow = dimSize * 2 + 1
@@ -35,7 +35,7 @@ For 2D this means at most five and for 3D at most seven entries per row.
 	\end{tabular}
 \caption{Example Matrix in CSR format}\label{fig:csr-matrix}
 \end{figure*}
-\par The \textit{compressed sparse row} (CSR) \parencite{tinney1967direct} format tackles this memory problem by only storing information of non-zero entries of a sparse matrix. It consists of three arrays:\\\\
+\par The \textit{compressed sparse row} (CSR) format tackles this memory problem by only storing information of non-zero entries of a sparse matrix \parencite{tinney1967direct}. It consists of three arrays:\\\\
 \begin{tabular}{ll}
 	\textit{data\label{csr-data}}: & values of non-zero entries in row-major order.\\
 	\textit{columnptr\label{csr-columnptr}}: & the column indices of all non-zero data entries in row-major order.\\
@@ -45,7 +45,7 @@ Because \textbf{A} is sparse to a vast extent, the CSR format reduces memory con
 
 \subsection{Tailoring the CSV format for the GPU pressure solve}\label{laplace-optimization}
 For every row $i$ we know that all non-zero entries of this row lay in the range $\big[\text{\hyperref[csr-rowcnt]{\textit{rowcnt}}[i] ; \hyperref[csr-rowcnt]{\textit{rowcnt}}[i+1]}\big[$ in the \hyperref[csr-data]{\textit{data}} array. 
-\par The maximum number of non-zero entries per row in the Laplace Matrix is $maxNonZerosPerRow$ as defined above. It is only the maximum possible number of non-zeros because neighbor cells of $(i,j)$ might be open or solid cells, thus zero in the $(i,j)$th row of the Laplace Matrix. For cells at the edge of the grid, we set the corresponding value for neighbor cells that lay outside the grid to zero in the \hyperref[csr-data]{\textit{data}} array as well. The CSR format would have removed those zero entries but if we keep them, we have a regular arrangement of \hyperref[csr-data]{\textit{data}} ($data_{regular}$)-entries per row. As a trade-of this will require slightly more memory. However we are now able to calculate the index of the row $i_{row}$ of any \hyperref[csr-data]{\textit{data}} entry by its index $i_{data}$:
+\par The maximum number of non-zero entries per row in the Laplace Matrix is $maxNonZerosPerRow$ as defined above. It is only the maximum possible number of non-zeros because neighbor cells of $(i,j)$ might be open or solid cells, thus zero in the $(i,j)$th row of the Laplace Matrix. For cells at the edge of the grid, we set the corresponding value for neighbor cells that lay outside the grid to zero in the \hyperref[csr-data]{\textit{data}} array as well. The CSR format would have removed those zero entries but if we keep them, we have a regular arrangement of \hyperref[csr-data]{\textit{data}} ($data_{regular}$)-entries per row. As a trade-of this will require slightly more memory. However we are now able to calculate the index of the row $i_{row}$ of any \hyperref[csr-data]{$data_{regular}$} entry by its index $i_{data}$:
 \begin{equation} \label{row-index-by-data-index}
 	i_{row} = \floor*{\frac{i_{data}}{maxNonZerosPerRow}}
 \end{equation}
@@ -108,11 +108,11 @@ Now getting the column index $i_{column}$ by an arbitrary $data_{regular}$ index
 \end{equation}
 
 \section{GPU Pressure Solve}
-In the previous section we found an algorithm that creates and stores the Laplace Matrix efficiently on GPUs. In this section I present how the system of linear equations $\mathbf{A}\vec{p} = \frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n$ (\ref{pressure-equation-shortened}) can be solved on GPUs using the Conjugate Gradient method. First, we simplify equation \ref{pressure-equation-shortened}:
+In the previous section we found an algorithm that creates and stores the Laplace Matrix \textbf{A} efficiently on GPUs. In this section I present how the system of linear equations $\mathbf{A}\vec{p} = \frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n$ (\ref{pressure-equation-shortened}) can be solved on GPUs using the Conjugate Gradient method. First, we simplify equation \ref{pressure-equation-shortened}:
 \begin{equation}
 	\mathbf{A}\vec{p} = \vec{d} 
 \end{equation}
-Now solving this system of linear equations with the cg-method works as follows:
+Now solving this system of linear equations with the cg-method works as follows \parencite{hestenes1952methods}:
 
 \begin{algorithm}
 \caption{Pressure Solve with cg-method}\label{pressure-solve-cg}
@@ -141,7 +141,7 @@ Obviously operation \ref{calcZ} is the most demanding because it involves a matr
 
 
 \subsubsection{\hyperref[calcZ]{calcZ}}
-Without further ado, we can derive an algorithm to calculate $\vec{z}$ using \textbf{A} in the Tailored CSR format. Every thread computes one entry of the resulting vector. The row $rowID$ of this vector is given by the CUDA thread and block id:
+Without further ado, we can derive an algorithm to calculate $\vec{z}$ using \textbf{A} in the Tailored CSR format. Every thread computes one entry of the resulting vector $\vec{z}$. The row $rowID$ of this vector is given by the CUDA thread and block id:
 \begin{algorithm}
 \caption{Multiplies \textbf{A} with a vector}\label{pressure-solve-calc-z}
 \begin{algorithmic}[1]

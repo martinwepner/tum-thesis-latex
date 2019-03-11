@@ -12,7 +12,7 @@ $\rho$ stands for the density of the fluid. E.g. $\rho_{Water} \approx 1000 kg/m
 $p$, on the other hand, holds the pressure, which is the force per unit the fluid exerts on its surroundings.\\
 $\vec{F}$ denotes external forces such as gravity and buoyancy.\\
 $\nu$ is called kinematic viscosity. The higher the viscosity of a fluid is the higher its inherent inertia. For example, honey has a higher viscosity than water.\\
-\par Equation \ref{navier-stokes1} - the "momentum equation" - very briefly describes how the fluid accelerates due to the forces acting on it. eq. \ref{navier-stokes2} is called "incompressibility condition" and means that the density of the fluid doesn't change.
+\par Equation \ref{navier-stokes1} - the "momentum equation" - very briefly describes how the fluid accelerates due to the forces acting on it. Eq. \ref{navier-stokes2} is called "incompressibility condition" and means that the density of the fluid doesn't change.
 \par If real fluids were incompressible, we couldn't hear anything underwater \parencite{urick1967principles}, so why do we assume them to be incompressible? Liquids are practically incompressible - it requires a lot of force to do so, and it is also only possible up to a small degree of compression \parencite{kell1975density}. Gases like air are easier to compress, but only with the help of pumps \parencite{burenga1978portable} or extreme situations like blast waves caused by for example explosions \parencite{taylor1950formation} \parencite{taylor1950formation2}. Those kind of scenarios are called "compressible flow" and are expensive to simulate \parencite{poinsot1992boundary}. Additionally, they are only visible on a macroscopic level and hence irrelevant for the animation of fluids \parencite{bridson2015fluid}.
 \par Viscosity needs to be considered only in those cases where animating viscous fluids like honey is desired \parencite{bridson2015fluid}. For most cases, however, it plays a minor role and can be dropped. Those ideal fluids without viscosity are called "inviscid". The Navier Stokes equations can then be simplified to the following, the so-called "Euler Equations":
 \begin{equation} \label{euler-equation1}
@@ -42,7 +42,7 @@ Using the central difference for $\frac{\partial p}{\partial x}$ and $\frac{\par
     u_{i+1/2,j}^{n+1} = u_{i+1/2,j}^{n} - \Delta t \frac{1}{\rho} \frac{p_{i+1,j} - p_{i,j}}{\Delta x}
 \end{equation}
 \begin{equation} \label{velocity-update2}
-v_{i+1/2,j}^{n+1} = v_{i,j+1/2}^{n} - \Delta t \frac{1}{\rho} \frac{p_{i,j+1/2} - p_{i,j}}{\Delta x}
+v_{i+1/2,j}^{n+1} = v_{i,j+1/2}^{n} - \Delta t \frac{1}{\rho} \frac{p_{i,j+1} - p_{i,j}}{\Delta x}
 \end{equation}
 Substituting \ref{velocity-update1} and \ref{velocity-update2} into \ref{numerical-divergence-velocity} finally gives:
 \begin{equation} \label{pressure-equation}
@@ -73,12 +73,12 @@ Concerning the pressure update, assume grid cell $(i,j)$ to be fluid and its nei
 \end{equation}
 This is called Neumann boundary condition because the derivative of the solution is specified along the boundary.
 \newpage
-\subsubsection{Open/Air}
+\subsubsection{Open/Air} \label{dirichlet}
 Compared to water, air is about 780 times lighter. When simulating liquids, the pressure $p$ of air regions may be set to zero since it has only minimal impact and therefore no significant visual effect. Since we directly specify the value of the pressure at those air cells it is called a Dirichlet boundary condition.
 
 
 \subsubsection{Extended MAC-grid}
-From equation \ref{pressure-equation} we know that for one pressure update of one cell we need to consider all its neighbors. What about those grid cells lying on the edge of the grid? Technically those cells have fewer neighbors than the others. To solve this issue, we extend the grid that holds the information about the state (fluid, solid, air) on every dimension. So for a (n x m) sized simulation, we need an (n+2 x m+2) grid that holds the information. We differ between open boundaries where those extended cells are just air cells and closed boundaries where solid cells surround the grid.
+From equation \ref{pressure-equation} we know that for one pressure update of one cell we need to consider all its neighbors. What about those grid cells lying on the edge of the grid? Technically those cells have fewer neighbors than the others. To solve this issue, we extend the grid that holds the information about the state (fluid, solid, air, open) on every dimension. So for a (n x m) sized simulation, we need a (n+2 x m+2) grid that holds the information. We differ between open boundaries where those extended cells are open cells and closed boundaries where solid cells surround the grid.
 
 \newpage
 
@@ -87,25 +87,25 @@ To implement a method that extracts the Laplace Matrix \textbf{A}, we need to ta
 \begin{equation} \label{pressure-equation-with-boundaries}
     \begin{aligned}
         & -4p_{i,j} + \textcolor{brown}{\left[p_{i,j} + \frac{\rho \Delta x}{\Delta t} (u_{i+1/2,j} - u_{solid}) \right]} + p_{i,j+1} + \textcolor{blue}{0} + p_{i,j-1} \\
-        & = \frac{\rho \Delta x^2}{\Delta t} \left( \frac{u_{i+1/2,j}^{n} - u_{i-1/2,j}^{n}}{\Delta x} + \frac{v_{i,j+1/2}^{n} - v_{i,j-1/2}^{n}}{\Delta x} \right)
+        & = \frac{\rho \Delta x}{\Delta t} \left( u_{i+1/2,j}^{n} - u_{i-1/2,j}^{n} + v_{i,j+1/2}^{n} - v_{i,j-1/2}^{n} \right)
     \end{aligned}
 \end{equation}
 which results in
 \begin{equation} \label{pressure-equation-with-boundaries-resolved}
     \begin{aligned}
-        & - \textcolor{brown}{3}p_{i,j} + p_{i,j+1} + p_{i,j-1} = \frac{\rho \Delta x^2}{\Delta t} \left( \frac{\textcolor{brown}{u_{solid}^{n}} - u_{i-1/2,j}^{n}}{\Delta x} + \frac{v_{i,j+1/2}^{n} - v_{i,j-1/2}^{n}}{\Delta x} \right)
+        & - \textcolor{brown}{3}p_{i,j} + p_{i,j+1} + p_{i,j-1} = \frac{\rho \Delta x}{\Delta t} \left( \textcolor{brown}{u_{solid}^{n}} - u_{i-1/2,j}^{n} + v_{i,j+1/2}^{n} - v_{i,j-1/2}^{n} \right)
     \end{aligned}
 \end{equation}
 \par We can make some very important observations from \ref{pressure-equation}, \ref{pressure-equation-with-boundaries} and \ref{pressure-equation-with-boundaries-resolved} for building the Laplace Matrix in code:
 \begin{itemize}
-      \item Every row in \textbf{A} represents one cell $(i,j)$ and every column all cells on the MAC-grid. Non-neighbor entries of $\mathbf{A}$ are 0.
+      \item $\mathbf{A}$ is similar to an adjacency matrix: It is symmetric and non adjacent cells are zero.
       \item Note that the coefficient of $p_{i,j}$ in \ref{pressure-equation} matches the negative number of neighbors of a cell $(i,j)$. Let's call this coefficient $k_{diagonal} = -dim(grid) * 2$, since it is always on the diagonal of $\mathbf{A}$'s entries.
       \item Every neighbor of cell $(i,j)$ is 1 in the corresponding row of $\mathbf{A}$.
-      \item For every neighbor of cell $(i,j)$ that is a solid cell increment $k_{diagonal}$ by 1 and set the corresponding column to 0.
-      \item For every neighbor of cell $(i,j)$ that is an open cell set the corresponding column to 0.
-      \item In liquid simulations: For every neighbor of cell $(i,j)$ that is an air cell set the corresponding column to 0.
+      \item For every neighbor of cell $(i,j)$ that is a solid cell increment $k_{diagonal}$ by 1 and set the corresponding column to 0 (Neumann condition).
+      \item For every neighbor of cell $(i,j)$ that is an open cell set the corresponding column to 0 (Dirichlet condition).
+      \item In liquid simulations: For every neighbor of cell $(i,j)$ that is an air cell set the corresponding column to 0 (Dirichlet condition).
 \end{itemize}
-With that in mind, we can derive an algorithm which builds $\mathbf{A}$. Note that most of $\mathbf{A}$ is zero so it is a sparse matrix. Also, because of the symmetry of neighboring cells, $\mathbf{A}$ is symmetric.
+With that in mind, we can derive an algorithm which builds $\mathbf{A}$. Note that most of $\mathbf{A}$ is zero so it is a sparse matrix.
 
 \begin{figure*}
 \centering
