@@ -2,11 +2,11 @@
 
 In this chapter I present how my CUDA solution compares against the TensorFlow implementations of $\Phi_{Flow}$.
 \par All benchmarks were performed in a closed boundary environment with random divergence vectors in the $\left[-1, 1 \right]$ range. This may not represent real fluid simulations, since it is more expensive to compute with random vectors. However, as a benchmark it is well suited to compare the individual implementations. At the end of this chapter for comparison I present the average cg-iterations of a simple plume simulation.
-\par The targeted residual accuracy was $1^{-5}$. Before starting the measurement, a warm-up of 5 runs was performed. The data shows the mean and standard deviation of 25 runs. The test system consists of a GeForce GTX 980, a Quad-Core Intel Core i7 3779K @3.5GHz CPU and 8GB of RAM.
+\par The targeted residual accuracy was $1^{-5}$. Before starting the measurement, a warm-up of 5 runs was performed. The data shows the mean and standard deviation of 25 runs. The test system consists of a GeForce GTX 980, a Quad-Core Intel Core i7 3779K @3.5GHz CPU and 8GB of RAM. Because of memory limitations on the test system, some tests could not be done in the $\Phi_{Flow}$ implementations.
 \subsubsection{Performance Pressure Solve}
-The following table shows the execution time per solve (t/s) and the average number of cg-iterations (iters) for quadratic grids and compares the TensorFlow solutions with my CUDA implementation: \\
-\renewcommand{\arraystretch}{1.39}
-\footnotesize
+The following table shows the execution time per solve (t/s) and the average number of cg-iterations (iters) for quadratic grids and compares the TensorFlow solutions with my CUDA implementation: \\\\
+\renewcommand{\arraystretch}{1.36}
+\small
 \begin{tabular}{l||l|l|l|l|l|l||r|r}
 \hline
 \multirow{2}{*}{Dimension} & \multicolumn{2}{l|}{TF CPU} & \multicolumn{2}{l|}{TF GPU} & \multicolumn{2}{l||}{CUDA} & \multirow{2}{*}{Speedup CPU} & \multirow{2}{*}{Speedup GPU} \\ \cline{2-7} 
@@ -21,9 +21,8 @@ $2048^2$ & n/a      &   & n/a     &  & 9,742 s  &  & n/a     & n/a    \\ \hline 
 $64^3$   & 3,878 s  &  & 2,473 s  &  & 42,18 ms &  & 91.9 x  & 58.6 x \\ \hline
 $128^3$  & 55.22 s  &  & 29,35 s  &  & 397,1 ms &  & 139.1 x & 73.9 x \\ \hline
 $256^3$  & n/a      &  & n/a      &  & 5,814 s  &  & n/a  & n/a 		  \\ \hline
-\end{tabular}\\\\
+\end{tabular}
 \normalsize
-Because of memory limitations on the test system, some tests could not be done in the TensorFlow implementations.
 
 \begin{figure*}[t]
 \centering
