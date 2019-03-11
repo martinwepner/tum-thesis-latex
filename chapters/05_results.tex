@@ -90,7 +90,7 @@ In this test, I compare how much my GPU solution differs from the CPU version of
 
 \clearpage
 \subsubsection{Performance Laplace Matrix generation}
-The Speed of the Laplace Matrix generation is crucial for simulation with moving boundary conditions. $\Phi_{Flow}$ computes the Laplace Matrix once at startup on the CPU, so it does not infer with the simulation itself. Compared to the CPU implementation I could speed up the generation time up to a factor of 800 times. While the CPU version scales with the simulation size up, my parallelized CUDA implementation keeps constant significantly longer.
+The speed of the Laplace Matrix generation is crucial for simulation with moving boundary conditions. $\Phi_{Flow}$ computes the Laplace Matrix once at startup on the CPU, so it does not infer with the simulation itself. Compared to the CPU implementation I could speed up the generation time to a factor of up to 800 times. While the CPU version scales with the simulation size up, my parallelized CUDA implementation keeps constant significantly longer.
 
 
 \begin{figure*}[t]
