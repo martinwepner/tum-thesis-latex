@@ -110,7 +110,7 @@ Now getting the column index $i_{column}$ by an arbitrary $data_{regular}$ index
 
 \subsection{Create the Laplace Matrix in the Tailored CSV format on the GPU}\label{laplace-creation}
 We now derive an algorithm, that creates the Laplace Matrix in parallel on the GPU. We apply the Tailored CSV format that was introduced in the previous section. 
-\par The goal is, that every GPU-thread will compute one cell or one row in \textbf{A}. To do that, we start  $dimProduct$ threads each providing the $rowID$ by its thread id. Using the $rowID$ we have to check the state in $mask$ of all neighbors and insert the data accordingly in row major format. To do that, we first check the neighbors that appear before the current cell in the linearized grid and push their values, add the diagonal entry of the current cell itself and then check the remaining neighbors and add their data:
+\par The goal is, that every GPU-thread will compute one cell or one row in \textbf{A}. To do that, we start  $dimProduct$ threads each providing the $rowID$ by its thread id. Using the $rowID$ we have to check the state in $mask$ of all neighbors and insert the data accordingly in row-major format. To do that, we first review the neighbors that appear before the current cell in the linearized grid and push their values, add the diagonal entry of the current cell itself and then check the remaining neighbors and add their data:
 
 \begin{algorithm}
 \caption{Create Laplace Matrix }\label{laplace-matrix-generation}
@@ -119,7 +119,8 @@ We now derive an algorithm, that creates the Laplace Matrix in parallel on the G
 	\State $i_{data} = rowID \cdot (dimSize \cdot 2 + 1)$
 	\State $diagonalValue = - dimSize * 2$
 	
-	\State \Comment{Insert data of neighbors that appear before the current cell}
+	\State
+	\State \Comment{Insert data of neighbors that appear before the current cell in linearized grid}
 	\For{$neighbor$ of $beforeNeighbors$ in row-major}
 		\If {$neighbor$ is Fluid Cell in $mask$ } 
 			\State $data_{regular}[i_{data}] = 1$
@@ -132,6 +133,7 @@ We now derive an algorithm, that creates the Laplace Matrix in parallel on the G
 		\State $i_{data}$++
 	\EndFor
 	
+	\State
 	\State \Comment{Modify $diagonalValue$ according to the $nextNeighbors$}
 	\For{$neighbor$ of $afterNeighbors$ in row-major}
 		\If {$neighbor$ is Solid Cell in $mask$}
@@ -139,11 +141,13 @@ We now derive an algorithm, that creates the Laplace Matrix in parallel on the G
 		\EndIf
 	\EndFor
 	
+	\State
 	\State \Comment{Insert diagonal entry of the current cell}
 	\State $data_{regular}[i_{data}] = diagonalValue$
 	\State $i_{data}$++
 	
-	\State \Comment{Insert data of neighbors that appear after the current cell}
+	\State
+	\State \Comment{Insert data of neighbors that appear after the current cell in linearized grid}
 	\For{$neighbor$ of $afterNeighbors$ in row-major}
 		\If {$neighbor$ is Fluid Cell in $mask$ } 
 			\State $data_{regular}[i_{data}] = 1$
