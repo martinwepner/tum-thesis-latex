@@ -107,6 +107,60 @@ Now getting the column index $i_{column}$ by an arbitrary $data_{regular}$ index
 \end{aligned}
 \end{equation}
 
+
+\subsection{Create the Laplace Matrix in the Tailored CSV format on the GPU}\label{laplace-creation}
+We now derive an algorithm, that creates the Laplace Matrix in parallel on the GPU. We apply the Tailored CSV format that was introduced in the previous section. 
+\par The goal is, that every GPU-thread will compute one cell or one row in \textbf{A}. To do that, we start  $dimProduct$ threads each providing the $rowID$ by its thread id. Using the $rowID$ we have to check the state in $mask$ of all neighbors and insert the data accordingly in row major format. To do that, we first check the neighbors that appear before the current cell in the linearized grid and push their values, add the diagonal entry of the current cell itself and then check the remaining neighbors and add their data:
+
+\begin{algorithm}
+\caption{Create Laplace Matrix }\label{laplace-matrix-generation}
+\begin{algorithmic}[1]
+\Procedure {Get Laplace Matrix}{$rowID$, $mask$, $data_{regular}$ }
+	\State $i_{data} = rowID \cdot (dimSize \cdot 2 + 1)$
+	\State $diagonalValue = - dimSize * 2$
+	
+	\State \Comment{Insert data of neighbors that appear before the current cell}
+	\For{$neighbor$ of $beforeNeighbors$ in row-major}
+		\If {$neighbor$ is Fluid Cell in $mask$ } 
+			\State $data_{regular}[i_{data}] = 1$
+		\ElsIf {$neighbor$ is Solid Cell in $mask$}
+			\State $data_{regular}[i_{data}] = 0$
+			\State $diagonalValue$++
+		\ElsIf {$neighbor$ is Open Cell in $mask$}
+			\State $data_{regular}[i_{data}] = 0$
+		\EndIf
+		\State $i_{data}$++
+	\EndFor
+	
+	\State \Comment{Modify $diagonalValue$ according to the $nextNeighbors$}
+	\For{$neighbor$ of $afterNeighbors$ in row-major}
+		\If {$neighbor$ is Solid Cell in $mask$}
+			\State $diagonalValue$++
+		\EndIf
+	\EndFor
+	
+	\State \Comment{Insert diagonal entry of the current cell}
+	\State $data_{regular}[i_{data}] = diagonalValue$
+	\State $i_{data}$++
+	
+	\State \Comment{Insert data of neighbors that appear after the current cell}
+	\For{$neighbor$ of $afterNeighbors$ in row-major}
+		\If {$neighbor$ is Fluid Cell in $mask$ } 
+			\State $data_{regular}[i_{data}] = 1$
+		\ElsIf {$neighbor$ is Solid Cell in $mask$}
+			\State $data_{regular}[i_{data}] = 0$
+		\ElsIf {$neighbor$ is Open Cell in $mask$}
+			\State $data_{regular}[i_{data}] = 0$
+		\EndIf
+		\State $i_{data}$++
+	\EndFor
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+
+
+\newpage
 \section{GPU Pressure Solve}
 In the previous section we found an algorithm that creates and stores the Laplace Matrix \textbf{A} efficiently on GPUs. In this section I present how the system of linear equations $\mathbf{A}\vec{p} = \frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n$ (\ref{pressure-equation-shortened}) can be solved on GPUs using the Conjugate Gradient method. First, we simplify equation \ref{pressure-equation-shortened}:
 \begin{equation}
@@ -140,6 +194,7 @@ All mathematical operations except for operation \ref{calcZ} and \ref{checkResid
 Obviously operation \ref{calcZ} is the most demanding because it involves a matrix-vector multiplication. Now we can take advantage of the findings and optimization steps in the previous section. 
 
 
+\newpage
 \subsubsection{\hyperref[calcZ]{calcZ}}
 Without further ado, we can derive an algorithm to calculate $\vec{z}$ using \textbf{A} in the Tailored CSR format. Every thread computes one entry of the resulting vector $\vec{z}$. The row $rowID$ of this vector is given by the CUDA thread and block id:
 \begin{algorithm}
