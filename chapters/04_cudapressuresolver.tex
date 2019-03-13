@@ -1,5 +1,5 @@
 \chapter{CUDA Pressure Solver}\label{chapter:cudapressuresolver}
-In this chapter, we find an efficient numerical approach to solve the system of linear equations $\mathbf{A}\vec{p} = \frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n$ (\ref{pressure-equation-shortened}) using TensorFlows Custom Ops and Nvidia CUDA Kernels. First, we discuss how \textbf{A} is built and stored in memory and then how the Conjugate Gradient method can be used to solve it. 
+In this chapter, we find an efficient numerical approach to solve the system of linear equations $\mathbf{A}\vec{p} = \frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n$ (\ref{pressure-equation-shortened}) using TensorFlow's custom ops and Nvidia CUDA kernels. First, we discuss how \textbf{A} is built and stored in memory and then how the Conjugate Gradient method can be used to solve it. 
 \par We will use some recurring variables which I clarify here:
 \begin{itemize}
 	\setlength\itemsep{-0.3em}
@@ -7,11 +7,10 @@ In this chapter, we find an efficient numerical approach to solve the system of 
 	\item \textit{dimSize} holds the number of dimensions.
 	\item \textit{dimProduct} is the product $\prod_{i=0}^{dimSize} \textit{dimensions}[i]$ of all dimensions. 
 	\item \textit{mask} holds the information of fluid, open and solid cells including the boundary cells.
-	\item \textit{maskDimensions} is an array that holds the dimensions of the mask.
 \end{itemize}
 
 \section{GPU Laplace Matrix generation}
-The goal of this section is to find a parallelizable algorithm that creates the Laplace Matrix A, so that a GPU can compute exactly one cell $(i,j)$ or one row of \textbf{A} per thread.
+The goal of this section is to find a parallelizable algorithm that creates the Laplace Matrix \textbf{A}, so that a GPU can compute exactly one cell $(i,j)$ or one row of \textbf{A} per thread.
 \par GPU memory is very limited. For a simulation of the size 64 x 64 x 64 the dimension of the Laplace Matrix is 262.144 x 262.144. This would require 256 GB of GPU-memory if we tried to cache the matrix with 32 bit numbers. At the time of this writing this is only possible with special GPUs that have additional GPU-SSD memory.
 \par Take a look back on the example Laplace Matrix in Fig. \ref{fig:laplace-matrix}. Notice, that most of it is zero. In fact, there are only at most as many non-zero entries as the number of neighbors of a cell plus one for the cell itself:
 \begin{equation}
@@ -45,7 +44,7 @@ Because \textbf{A} is sparse to a vast extent, the CSR format reduces memory con
 
 \subsection{Tailoring the CSV format for the GPU pressure solve}\label{laplace-optimization}
 For every row $i$ we know that all non-zero entries of this row lay in the range $\big[\text{\hyperref[csr-rowcnt]{\textit{rowcnt}}[i] ; \hyperref[csr-rowcnt]{\textit{rowcnt}}[i+1]}\big[$ in the \hyperref[csr-data]{\textit{data}} array. 
-\par The maximum number of non-zero entries per row in the Laplace Matrix is $maxNonZerosPerRow$ as defined above. It is only the maximum possible number of non-zeros because neighbor cells of $(i,j)$ might be open or solid cells, thus zero in the $(i,j)$th row of the Laplace Matrix. For cells at the edge of the grid, we set the corresponding value for neighbor cells that lay outside the grid to zero in the \hyperref[csr-data]{\textit{data}} array as well. The CSR format would have removed those zero entries but if we keep them, we have a regular arrangement of \hyperref[csr-data]{\textit{data}} ($data_{regular}$)-entries per row. As a trade-of this will require slightly more memory. However we are now able to calculate the index of the row $i_{row}$ of any \hyperref[csr-data]{$data_{regular}$} entry by its index $i_{data}$:
+\par The maximum number of non-zero entries per row in the Laplace Matrix is $maxNonZerosPerRow$ as defined above. It is only the maximum possible number of non-zeros because neighbor cells of $(i,j)$ might be open or solid cells, thus zero in the $(i,j)$th row of the Laplace Matrix. For cells at the edge of the grid, we set the corresponding value for neighbor cells that lay outside the grid to zero in the \hyperref[csr-data]{\textit{data}} array as well. The CSR format would have removed those zero entries but if we keep them, we have a regular arrangement of \hyperref[csr-data]{\textit{data}} ($data_{regular}$)-entries per row. As a trade-of this will require slightly more memory. However, we are now able to calculate the index of the row $i_{row}$ of any \hyperref[csr-data]{$data_{regular}$} entry by its index $i_{data}$:
 \begin{equation} \label{row-index-by-data-index}
 	i_{row} = \floor*{\frac{i_{data}}{maxNonZerosPerRow}}
 \end{equation}
@@ -71,9 +70,9 @@ For every row $i$ we know that all non-zero entries of this row lay in the range
 \begin{figure*}
 \centering
 \[
-	diagonalOffset = \left[ \text{ -4, -1, \textcolor{red}{0}, 1, 4 } \right]
+	diagonalOffsets = \left[ \text{ -4, -1, \textcolor{red}{0}, 1, 4 } \right]
 \]
-\caption{$diagonalOffset$ array that corresponds to Fig. \ref{fig:laplace-matrix}.}
+\caption{$diagonalOffsets$ array that corresponds to Fig. \ref{fig:laplace-matrix}.}
 \label{fig:data-columnptr-merge}
 \end{figure*} 
 More in-depth inspection of Fig. \ref{fig:laplace-matrix} reveals that neighbor-cell entries always appear by the same distances to the diagonal of each row. Of course, this is due to the fact that the respective neighbors on the linearized grid lie at the same distance from each other for every cell accordingly. This is also applicable to the $data_{regular}$ array: in respect to the diagonal (red) entries the neighbors always appear in the same order (Fig. \ref{fig:data-columnptr-merge}). With this knowledge we can extract a method to infer from each $data_{regular}$ entry the respective column index $i_{column}$ via the data index $i_{data}$. 
@@ -84,17 +83,17 @@ Here is an algorithm to create the $diagonalOffsets$ array:
 \caption{Creates an array containing the column offset for every neighbor of a row in \textbf{A} in respect to the diagonal}\label{diagonalOffsets}
 \begin{algorithmic}[1]
 \Function {Get diagonalOffsets}{$maxDataPerRow$, $dimensions$ }
-	\State $offsets = \left[ i_0, i_1, \cdots, i_{maxDataPerRow} \right]$  \Comment{Declare array of length $maxDataPerRow$}
+	\State $diagonalOffsets = \left[ \cdots \right]$  \Comment{Declare array of length $maxDataPerRow$}
 	\State $factor = 1$
 	\State $\mathbf{const}$ $diagonal = \floor*{\frac{maxNonZerosPerRow}{2}}$
 	\State 
 	\For{$i = 0,$ $offset = 1;$ $i < diagonal;$ $i$++$,$ $offset$++}
-    	\State $offsets[diagonal - offset] = -factor$
-        \State $offsets[diagonal + offset] = factor$
+    	\State $diagonalOffsets[diagonal - offset] = -factor$
+        \State $diagonalOffsets[diagonal + offset] = factor$
         \State $factor = factor * dimensions[i]$
 	\EndFor
-	\State $offsets[diagonal] = 0$
-	\State \Return $offsets$
+	\State $diagonalOffsets[diagonal] = 0$
+	\State \Return $diagonalOffsets$
 	
 \EndFunction
 \end{algorithmic}
@@ -108,9 +107,9 @@ Now getting the column index $i_{column}$ by an arbitrary $data_{regular}$ index
 \end{equation}
 
 
-\subsection{Create the Laplace Matrix in the Tailored CSV format on the GPU}\label{laplace-creation}
+\subsection{Laplace Matrix in the Tailored CSV format generation on the GPU}\label{laplace-creation}
 We now derive an algorithm, that creates the Laplace Matrix in parallel on the GPU. We apply the Tailored CSV format that was introduced in the previous section. 
-\par The goal is, that every GPU-thread will compute one cell or one row in \textbf{A}. To do that, we start  $dimProduct$ threads each providing the $rowID$ by its thread id. Using the $rowID$ we have to check the state in $mask$ of all neighbors and insert the data accordingly in row-major format. To do that, we first review the neighbors that appear before the current cell in the linearized grid and push their values, add the diagonal entry of the current cell itself and then check the remaining neighbors and add their data:
+\par The goal is, that one cell or one row in \textbf{A} is computed per GPU thread. To do that, we start  $dimProduct$ threads each providing the $rowID$ by its thread id. Using the $rowID$ we have to check the state in $mask$ of all neighbors and insert the data accordingly in row-major format. To do that, we first review the neighbors that appear before the current cell in the linearized grid and push their values, add the diagonal entry of the current cell itself and then check the remaining neighbors and add their data:
 
 \begin{algorithm}
 \caption{Create Laplace Matrix }\label{laplace-matrix-generation}
@@ -122,19 +121,19 @@ We now derive an algorithm, that creates the Laplace Matrix in parallel on the G
 	\State
 	\State \Comment{Insert data of neighbors that appear before the current cell in linearized grid}
 	\For{$neighbor$ of $beforeNeighbors$ in row-major}
-		\If {$neighbor$ is Fluid Cell in $mask$ } 
+		\If {$neighbor$ is Fluid in $mask$ AND NOT $currentCell$ is Solid in $mask$} 
 			\State $data_{regular}[i_{data}] = 1$
-		\ElsIf {$neighbor$ is Solid Cell in $mask$}
+		\ElsIf {$neighbor$ is Solid in $mask$}
 			\State $data_{regular}[i_{data}] = 0$
 			\State $diagonalValue$++
-		\ElsIf {$neighbor$ is Open Cell in $mask$}
+		\ElsIf {$neighbor$ is Open in $mask$}
 			\State $data_{regular}[i_{data}] = 0$
 		\EndIf
 		\State $i_{data}$++
 	\EndFor
 	
 	\State
-	\State \Comment{Modify $diagonalValue$ according to the $nextNeighbors$}
+	\State \Comment{Modify $diagonalValue$ according to the $afterNeighbors$}
 	\For{$neighbor$ of $afterNeighbors$ in row-major}
 		\If {$neighbor$ is Solid Cell in $mask$}
 			\State $diagonalValue$++
@@ -149,11 +148,11 @@ We now derive an algorithm, that creates the Laplace Matrix in parallel on the G
 	\State
 	\State \Comment{Insert data of neighbors that appear after the current cell in linearized grid}
 	\For{$neighbor$ of $afterNeighbors$ in row-major}
-		\If {$neighbor$ is Fluid Cell in $mask$ } 
+		\If {$neighbor$ is Fluid in $mask$ AND NOT $currentCell$ is Solid in $mask$} 
 			\State $data_{regular}[i_{data}] = 1$
-		\ElsIf {$neighbor$ is Solid Cell in $mask$}
+		\ElsIf {$neighbor$ is Solid in $mask$}
 			\State $data_{regular}[i_{data}] = 0$
-		\ElsIf {$neighbor$ is Open Cell in $mask$}
+		\ElsIf {$neighbor$ is Open in $mask$}
 			\State $data_{regular}[i_{data}] = 0$
 		\EndIf
 		\State $i_{data}$++
@@ -166,7 +165,7 @@ We now derive an algorithm, that creates the Laplace Matrix in parallel on the G
 
 \newpage
 \section{GPU Pressure Solve}
-In the previous section we found an algorithm that creates and stores the Laplace Matrix \textbf{A} efficiently on GPUs. In this section I present how the system of linear equations $\mathbf{A}\vec{p} = \frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n$ (\ref{pressure-equation-shortened}) can be solved on GPUs using the Conjugate Gradient method. First, we simplify equation \ref{pressure-equation-shortened}:
+In the previous section we have found an algorithm that creates and stores the Laplace Matrix \textbf{A} efficiently on GPUs. In this section I present how the system of linear equations $\mathbf{A}\vec{p} = \frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n$ (\ref{pressure-equation-shortened}) can be solved on GPUs using the Conjugate Gradient method. First, we simplify equation \ref{pressure-equation-shortened}:
 \begin{equation}
 	\mathbf{A}\vec{p} = \vec{d} 
 \end{equation}
@@ -205,14 +204,12 @@ Without further ado, we can derive an algorithm to calculate $\vec{z}$ using \te
 \caption{Multiplies \textbf{A} with a vector}\label{pressure-solve-calc-z}
 \begin{algorithmic}[1]
 \Function {calcZ}{$rowID$, \textbf{A}, $\vec{m}$, $\vec{z}$, $columnOffsets$ }
-	\If {$rowID < dimProduct$} 
-		\State $rowStartIndex = rowID * maxNonZerosPerRow$ 
-		\State $tmp = 0$ 
-		\For{$i = rowStartIndex;$ $i < rowStartIndex + maxNonZerosPerRow;$ $i$++}
-			\State $tmp = tmp + \mathbf{A}[i] \cdot \vec{m}[rowID + columnOffsets[i - rowStartIndex]]$
-		\EndFor
-		\State $\vec{z}[rowID] = tmp$
-	\EndIf
+	\State $rowStartIndex = rowID * maxNonZerosPerRow$ 
+	\State $tmp = 0$ 
+	\For{$i = rowStartIndex;$ $i < rowStartIndex + maxNonZerosPerRow;$ $i$++}
+		\State $tmp = tmp + \mathbf{A}[i] \cdot \vec{m}[rowID + columnOffsets[i - rowStartIndex]]$
+	\EndFor
+	\State $\vec{z}[rowID] = tmp$
 \EndFunction
 \end{algorithmic}
 \end{algorithm}

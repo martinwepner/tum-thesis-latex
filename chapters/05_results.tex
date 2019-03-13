@@ -1,25 +1,25 @@
 \chapter{Results}\label{chapter:results}
 
 In this chapter I present how my CUDA solution compares against the TensorFlow implementations of $\Phi_{Flow}$.
-\par All benchmarks were performed in a closed boundary environment with random divergence vectors in the $\left[-1, 1 \right]$ range. This does not represent real fluid simulations. However, as a benchmark it is well suited to compare the individual implementations. 
-\par The targeted residual accuracy was $1^{-5}$. Before starting the measurement, a warm-up of 5 runs was performed. The data shows the mean and standard deviation of 25 runs. The test system consists of a GeForce GTX 980, a Quad-Core Intel Core i7 3779K @3.5GHz CPU and 8GB of RAM. Because of memory limitations on the test system, some tests could not be done in the $\Phi_{Flow}$ implementations.
+\par All benchmarks were performed in an open boundary environment with random divergence vectors in the $\left[-1, 1 \right]$ range. This does not represent real fluid simulations. However, as a benchmark it is well suited to compare the individual implementations. 
+\par The targeted residual accuracy was $1^{-5}$. Before starting the measurement, a warm-up of 5 runs was performed. The data shows the mean and standard deviation of 25 runs. The test system consists of a GeForce GTX 980, a Quad-Core Intel Core i7 3779K @3.5GHz CPU and 8GB of RAM. Because of memory limitations on the test system, some benchmarks could not be done in the $\Phi_{Flow}$ implementations.
 \subsubsection{Performance Pressure Solve}
-The following table shows the execution time per solve and the average number of cg-iterations for quadratic grids and compares the TensorFlow solutions with my CUDA implementation: \\\\
+The following table shows the execution time per solve and the average number of cg-iterations for quadratic grids and compares the TensorFlow solutions with my CUDA implementation. In contrast to the $\Phi_{Flow}$ variants, my implementation additionally calculates the Laplace matrix in each step: \\\\
 \renewcommand{\arraystretch}{1.36}
 \small
 \begin{tabular}{l||l|l|l||c||r|r}
 \hline
 Dimension & TF CPU   & TF GPU   & CUDA     & Iterations & Speedup CPU & Speedup GPU \\ \hline
-$64^2$   & 49,65 ms & 108,2 ms & 25,36 ms & 160  & 2.0 x   & 4.2 x  \\ \hline
-$128^2$  & 207,6 ms & 396,3 ms & 39,49 ms & 310  & 5.3 x   & 10.0 x \\ \hline
-$256^2$  & 1,169 s  & 1,839 s  & 77,19 ms & 600  & 15.1 x  & 23.8 x \\ \hline
-$512^2$  & 12,75 s  & 12,90 s  & 240,9 ms & 1175 & 52.9 x  & 53.6 x \\ \hline
-$1024^2$ & 133.7 s  & 87,47 s  & 1,412 s  & 2300 & 94.6 x  & 61.9 x \\ \hline
-$2048^2$ & n/a      & n/a      & 9,742 s  & 4450 & n/a     & n/a    \\ \hline \hline
+$64^2$   & 30,11 ms & 108,2 ms & 25,36 ms & 160  & 1.2 x  & 4.2 x  \\ \hline
+$128^2$  & 139,8 ms & 396,3 ms & 39,49 ms & 310  & 3.5 x  & 10.0 x \\ \hline
+$256^2$  & 1,161 s  & 1,839 s  & 77,19 ms & 600  & 15.1 x & 23.8 x \\ \hline
+$512^2$  & 11,58 s  & 12,90 s  & 240,9 ms & 1175 & 48.3 x & 53.6 x \\ \hline
+$1024^2$ & 114,6 s  & 87,47 s  & 1,412 s  & 2300 & 81.2 x & 61.9 x \\ \hline
+$2048^2$ & n/a      & n/a      & 9,742 s  & 4450 & n/a    & n/a    \\ \hline \hline
 
-$64^3$   & 3,878 s  & 2,473 s  & 42,18 ms & 170 & 91.9 x  & 58.6 x \\ \hline
-$128^3$  & 55.22 s  & 29,35 s  & 397,1 ms & 320 & 139.1 x & 73.9 x \\ \hline
-$256^3$  & n/a      & n/a      & 5,814 s  & 610 & n/a  & n/a 		  \\ \hline
+$64^3$   & 1,966 s  & 2,473 s  & 42,18 ms & 170  & 46.6 x & 58.6 x \\ \hline
+$128^3$  & 37,03 s  & 29,35 s  & 397,1 ms & 320  & 93,3 x & 73.9 x \\ \hline
+$256^3$  & 573,7 s  & n/a      & 5,814 s  & 610  & 98,7 x & n/a 		  \\ \hline
 \end{tabular}
 \normalsize
 
@@ -88,7 +88,7 @@ In this test, I compare how much my GPU solution differs from the CPU version of
 
 \clearpage
 \subsubsection{Performance Laplace Matrix generation}
-The speed of the Laplace matrix generation is crucial for simulation with moving boundary conditions. $\Phi_{Flow}$ calculates the Laplace matrix once at startup on the CPU, so it has no effect on the actual fluid simulation. Compared to the CPU implementation I could shorten the generation time up to 800 times.  While the CPU version scales with the simulation size, my parallel CUDA implementation remains constant for significantly longer (Fig. \ref{fig:laplace-bench}).
+The speed of the Laplace Matrix generation is crucial for simulation with moving boundary conditions. $\Phi_{Flow}$ calculates the Laplace Matrix once at startup on the CPU, so it has no effect on the actual fluid simulation. Compared to the CPU implementation I could shorten the generation time up to 800 times.  While the CPU version scales with the simulation size, my parallel CUDA implementation remains constant for significantly longer (Fig. \ref{fig:laplace-bench}).
 
 \begin{figure*}[t]
 \centering

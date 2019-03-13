@@ -1,6 +1,6 @@
 \chapter{Numerical approaches for simulating fluids}\label{chapter:cudapressuresolver}
 
-Incompressible fluids are described by Navier Stokes equations \parencite{navier1827memoire} \parencite{stokes1880theories}:\\
+Incompressible fluids are described by the Navier Stokes equations \parencite{navier1827memoire} \parencite{stokes1880theories}:\\
 \begin{equation} \label{navier-stokes1}
     \frac{\partial \vec{u}}{\partial t} + \vec{u} \cdot \nabla \vec{u} + \frac{1}{\rho}  \nabla p = \vec{F} + \nu \nabla \cdot \nabla \vec{u}
 \end{equation}
@@ -12,8 +12,8 @@ $\rho$ stands for the density of the fluid. E.g. $\rho_{Water} \approx 1000 kg/m
 $p$, on the other hand, holds the pressure, which is the force per unit the fluid exerts on its surroundings.\\
 $\vec{F}$ denotes external forces such as gravity and buoyancy.\\
 $\nu$ is called kinematic viscosity. The higher the viscosity of a fluid is the higher its inherent inertia. For example, honey has a higher viscosity than water.\\
-\par Equation \ref{navier-stokes1} - the "momentum equation" - very briefly describes how the fluid accelerates due to the forces acting on it. Eq. \ref{navier-stokes2} is called "incompressibility condition" and means that the density of the fluid doesn't change over time.
-\par If real fluids were incompressible, we couldn't hear anything underwater \parencite{urick1967principles}, so why do we assume them to be incompressible? Liquids are practically incompressible - it requires a lot of force to do so, and it is also only possible up to a small degree of compression \parencite{kell1975density}. Gases like air are easier to compress, but only with the help of pumps \parencite{burenga1978portable} or extreme situations like blast waves caused by for example explosions \parencite{taylor1950formation} \parencite{taylor1950formation2}. Those kind of scenarios are called "compressible flow" and are expensive to simulate \parencite{poinsot1992boundary}. Additionally, they are only visible on a macroscopic level and hence irrelevant for the animation of fluids \parencite{bridson2015fluid}.
+\par Equation \ref{navier-stokes1} - the "momentum equation" - very briefly describes how the fluid accelerates due to the forces acting on it. Eq. \ref{navier-stokes2} is called "incompressibility condition" and means that the density of the fluid does not change over time.
+\par If real fluids were incompressible, we could not hear anything underwater \parencite{urick1967principles}, so why do we assume them to be incompressible? Liquids are practically incompressible - it requires a lot of force to do so, and it is also only possible up to a small degree of compression \parencite{kell1975density}. Gases like air are easier to compress, but only with the help of pumps \parencite{burenga1978portable} or extreme situations like blast waves caused by for example explosions \parencite{taylor1950formation} \parencite{taylor1950formation2}. Those kind of scenarios are called "compressible flow" and are expensive to simulate \parencite{poinsot1992boundary}. Additionally, they are only visible on a macroscopic level and hence irrelevant for the animation of fluids \parencite{bridson2015fluid}.
 \par Viscosity needs to be considered only in those cases where animating viscous fluids like honey is desired \parencite{bridson2015fluid}. For most cases, however, it plays a minor role and can be dropped. Those ideal fluids without viscosity are called "inviscid". The Navier Stokes equations can then be simplified to the following, the so-called "Euler Equations":
 \begin{equation} \label{euler-equation1}
     \frac{\partial \vec{u}}{\partial t} + \frac{1}{\rho}  \nabla p = \vec{F}
@@ -58,12 +58,12 @@ Now we have a system of linear equations in the form of the Poisson problem:
 	\mathbf{A}\vec{p} = \frac{\rho \Delta x^2}{\Delta t}\nabla \cdot \vec{u}^n
 \end{equation}
 
-The Laplace Matrix $\mathbf{A}$ is a symmetric and positive semi-definite matrix so eq. \ref{pressure-equation-shortened} can therefore be solve by the Conjugate Gradient method. Each row in \textbf{A} represents one cell $(i, j)$ on the MAC-grid. 
+The Laplace Matrix $\mathbf{A}$ is a symmetric and positive semi-definite matrix so eq. \ref{pressure-equation-shortened} can therefore be solved by the Conjugate Gradient method. Each row in \textbf{A} represents one cell $(i, j)$ on the MAC-grid. 
 
 
 \subsection{Boundary Conditions}
 \subsubsection{Solids}
-If an inviscid fluid is in contact with a wall, it cannot move into or out of the boundary. To achieve this the velocity components of the solid normal needs to match the speed of the fluid at this position:
+If an inviscid fluid is in contact with a wall, it cannot move into or out of the boundary. To achieve this, the velocity components of the solids normal needs to match the speed of the fluid at this position:
 \begin{equation} \label{navier-stokes12}
     \vec{u} \cdot \hat{n} = \vec{u}_{solid} \cdot \hat{n}
 \end{equation}
