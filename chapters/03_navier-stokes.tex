@@ -1,4 +1,4 @@
-\chapter{Numerical approaches for simulating fluids}\label{chapter:cudapressuresolver}
+\chapter{Numerical approaches for simulating fluids}\label{chapter:theoretical-background}
 
 Incompressible fluids are described by the Navier Stokes equations \parencite{navier1827memoire} \parencite{stokes1880theories}:\\
 \begin{equation} \label{navier-stokes1}
@@ -64,11 +64,11 @@ The Laplace Matrix $\mathbf{A}$ is a symmetric and positive semi-definite matrix
 \subsection{Boundary Conditions}
 \subsubsection{Solids}
 If an inviscid fluid is in contact with a wall, it cannot move into or out of the boundary. To achieve this, the velocity components of the solids normal needs to match the speed of the fluid at this position:
-\begin{equation} \label{navier-stokes12}
+\begin{equation} \label{solid-velocity}
     \vec{u} \cdot \hat{n} = \vec{u}_{solid} \cdot \hat{n}
 \end{equation}
 Concerning the pressure update, assume grid cell $(i,j)$ to be fluid and its neighbor $(i+1,j)$ to be solid. Then $u_{i+1/2,j}^{n+1} = u_{solid}$ and \ref{velocity-update1} can be rearranged to 
-\begin{equation} \label{navier-stokes12}
+\begin{equation} \label{solid-pressure-update}
     p_{i+1,j} = p_{i,j} + \frac{\rho \Delta x}{\Delta t} (u_{i+1/2,j} - u_{solid})
 \end{equation}
 This is called Neumann boundary condition because the derivative of the solution is specified along the boundary.
